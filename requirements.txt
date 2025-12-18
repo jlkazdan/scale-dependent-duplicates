@@ -1,6 +1,5 @@
 black
 datasets
-edit-distance
 huggingface_hub
 math-verify
 matplotlib
@@ -14,5 +13,4 @@ tokenizers
 tqdm
 transformers
 trl
-vllm
 wandb
