@@ -73,6 +73,7 @@ DEFAULT_PRETRAINING_CONFIG = {
 # https://qwenlm.github.io/blog/qwen2.5/
 MODEL_NAMES_TO_PARAMETERS_DICT = {
     "34M": 34e6,
+    "48M": 48e6,
     "63M": 63e6,
     "93M": 93e6,
     "153M": 153e6,
