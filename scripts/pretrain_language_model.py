@@ -88,13 +88,10 @@ def pretrain():
         f"CUDA_VISIBLE_DEVICES={os.environ.get('CUDA_VISIBLE_DEVICES','')}"
     )
 
-    run, run_id, wandb_config = initialize_wandb()
+    run, run_id, wandb_config, pted_model_hf_name = initialize_wandb()
     pprint.pprint(wandb_config)
 
     # Create the output directory.
-    pted_model_hf_name = create_pretrained_model_huggingface_name(
-        wandb_config=wandb_config,
-    )
     output_dir = os.path.join("models", "pt_language_model", pted_model_hf_name)
     if _is_main():
         wandb.config.update({"output_dir": output_dir}, allow_val_change=True)
@@ -431,12 +428,16 @@ def initialize_wandb():
         torch.distributed.broadcast_object_list(obj_list, src=0)
         run_id, cfg_dict = obj_list
 
+    pted_model_hf_name = create_pretrained_model_huggingface_name(
+        wandb_config=cfg_dict,
+    )
+
     # Use a consistent per-run HF datasets cache across all ranks.
     os.environ[
         "HF_DATASETS_CACHE"
-    ] = f"{os.getenv('LFS_HOME')}/KoyejoLab-Scaling-Memorization/cached_datasets/{run_id}"
+    ] = f"{os.getenv('LFS_HOME')}/KoyejoLab-Scaling-Memorization/cached_datasets/{pted_model_hf_name}"
 
-    return run, run_id, cfg_dict
+    return run, run_id, cfg_dict, pted_model_hf_name
 
 
 if __name__ == "__main__":
