@@ -69,7 +69,7 @@ parameters:
       optim:
         values: [ "adamw_torch_fused" ]
       overtrain_multiplier:
-        values: [ 1.0, 2.0, 4.0, 8.0 ]
+        values: [ 1.0 ]
       per_device_eval_batch_size:
         values: [ 72 ]
       per_device_train_batch_size:
