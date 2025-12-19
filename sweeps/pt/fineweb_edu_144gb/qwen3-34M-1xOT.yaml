@@ -17,7 +17,7 @@ parameters:
       direction:
         values: [ "top", "bot" ]
       shuffle_seed:
-        values: [ 0, 1 ]
+        values: [ 0 , 1 ]
       train_test_split_seed:
         values: [ 0 ]
   model_config:
@@ -47,7 +47,7 @@ parameters:
       eval_strategy:
         values: [ steps ]
       eval_steps:
-        values: [ 250 ]
+        values: [ 200 ]
       gradient_checkpointing:
         values: [ False ]
       hub_strategy:
@@ -55,7 +55,7 @@ parameters:
       base_learning_rate:
         values: [ 0.000001 ]
       logging_steps:
-        values: [ 1 ]
+        values: [ 10 ]
       lr_scheduler_type:
         values: [ "cosine" ]
       max_grad_norm:

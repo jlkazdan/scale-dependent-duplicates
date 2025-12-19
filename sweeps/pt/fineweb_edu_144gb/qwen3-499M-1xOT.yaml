@@ -2,7 +2,7 @@ command:
   - ${env}
   - torchrun
   - --standalone
-  - --nproc_per_node=1
+  - --nproc_per_node=2
   - ${program}
   - ${args}
 program: scripts/pretrain_language_model.py
@@ -25,7 +25,7 @@ parameters:
       attn_implementation:
         values: [ "flash_attention_2" ]
       model_name:
-        values: [ "Qwen3/Qwen3-153M" ]
+        values: [ "Qwen3/Qwen3-499M" ]
       torch_dtype:
         values: [ "bfloat16" ]
   trainer_config:
@@ -33,13 +33,13 @@ parameters:
       adam_beta1:
         values: [ 0.9 ]
       adam_beta2:
-        values: [ 0.95 ]
+        values: [0.95]
       data_seed:
         values: [ 0 ]
       dataloader_drop_last:
         values: [ True ]
       dataloader_num_workers:
-        values: [ 8 ]
+        values: [ 4 ]
       dataloader_prefetch_factor:
         values: [ 4 ]
       eval_on_start:
@@ -47,7 +47,7 @@ parameters:
       eval_strategy:
         values: [ steps ]
       eval_steps:
-        values: [ 900 ]
+        values: [ 2000 ]
       gradient_checkpointing:
         values: [ False ]
       hub_strategy:
@@ -71,9 +71,9 @@ parameters:
       overtrain_multiplier:
         values: [ 1.0 ]
       per_device_eval_batch_size:
-        values: [ 64 ]
+        values: [ 40 ]
       per_device_train_batch_size:
-        values: [ 64 ]
+        values: [ 40 ]
       remove_unused_columns:
         values: [ True ]
       report_to:

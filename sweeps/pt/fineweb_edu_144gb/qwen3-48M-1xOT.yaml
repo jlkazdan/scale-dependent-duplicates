@@ -47,7 +47,7 @@ parameters:
       eval_strategy:
         values: [ steps ]
       eval_steps:
-        values: [ 250 ]
+        values: [ 280 ]
       gradient_checkpointing:
         values: [ False ]
       hub_strategy:
@@ -55,7 +55,7 @@ parameters:
       base_learning_rate:
         values: [ 0.000001 ]
       logging_steps:
-        values: [ 1 ]
+        values: [ 10 ]
       lr_scheduler_type:
         values: [ "cosine" ]
       max_grad_norm:
@@ -71,9 +71,9 @@ parameters:
       overtrain_multiplier:
         values: [ 1.0 ]
       per_device_eval_batch_size:
-        values: [ 64 ]
+        values: [ 72 ]
       per_device_train_batch_size:
-        values: [ 64 ]
+        values: [ 72 ]
       remove_unused_columns:
         values: [ True ]
       report_to:

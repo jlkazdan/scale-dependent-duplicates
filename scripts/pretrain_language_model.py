@@ -32,6 +32,19 @@ import shutil
 import time
 import torch
 
+# Graph break from `Tensor.item()`, consider setting:
+#      torch._dynamo.config.capture_scalar_outputs = True
+#  or:
+#      env TORCHDYNAMO_CAPTURE_SCALAR_OUTPUTS=1
+#  to include these operations in the captured graph.
+#
+#  Graph break: from user code at:
+#    File "/lfs/skampere2/0/rschaef/KoyejoLab-Scaling-Memorization/scaling_mem_env/lib/python3.12/site-packages/transformers/modeling_flash_attention_utils.py", line 354, in torch_dynamo_res
+#
+#      max_length_q = max_length_q.item()
+#
+torch._dynamo.config.capture_scalar_outputs = True
+
 # Compiling seems to be causing problems down the line :/
 torch.compiler.disable()
 import torch.distributed

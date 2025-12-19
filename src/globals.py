@@ -69,7 +69,7 @@ MODEL_NAMES_TO_PARAMETERS_DICT = {
     "1.44B": 1.44e9,
     "Qwen3-34M": 34e6,
     "Qwen3-48M": 48e6,
-    "Qwen3-63M": 62e6,
+    "Qwen3-63M": 63e6,
     "Qwen3-93M": 93e6,
     "Qwen3-153M": 153e6,
     "Qwen3-344M": 344e6,
