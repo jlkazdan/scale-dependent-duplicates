@@ -7,6 +7,7 @@ numpy
 nvidia-htop
 pandas
 pyarrow
+scikit-learn
 scipy
 seaborn
 tokenizers

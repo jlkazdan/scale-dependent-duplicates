@@ -78,7 +78,7 @@ def pretrain():
     run, run_id, wandb_config = initialize_wandb()
     pprint.pprint(wandb_config)
 
-    # Create output directory.
+    # Create the output directory.
     pted_model_hf_name = create_pretrained_model_huggingface_name(
         wandb_config=wandb_config,
     )
@@ -218,7 +218,7 @@ def pretrain():
         processing_class=tokenizer,
         args=pretraining_config,
         train_dataset=train_dataset,
-        eval_dataset={"eval": eval_dataset, "benchmark": benchmark_dataset},
+        eval_dataset={"eval": eval_dataset},
         data_collator=data_collator,
     )
 
@@ -337,52 +337,11 @@ def compute_derived_hyperparameters(
     return wandb_config
 
 
-def compute_token_accuracy(eval_pred):
-    """
-    Computes token-level accuracy for a language model.
-    """
-    # Unpack the outputs from the EvalPrediction object
-    logits, labels = eval_pred.predictions, eval_pred.label_ids
-
-    # The SFTTrainer shifts logits and labels internally.
-    # We need to do the same here to align predictions with labels.
-    # Logits are for predicting the *next* token.
-    # -> Logits at position i predict token at position i+1
-    # -> We compare logits[..., :-1, :] with labels[..., 1:]
-    shift_logits = logits[..., :-1, :]
-    shift_labels = labels[..., 1:]
-
-    # Get the predicted token IDs by taking the argmax of the logits
-    predictions = np.argmax(shift_logits, axis=-1)
-
-    # Create a mask to ignore padding tokens (where label is -100)
-    mask = shift_labels != -100
-
-    # Calculate the number of correct predictions
-    correct_tokens = np.sum((predictions == shift_labels) & mask).astype(float)
-
-    # Calculate the total number of non-padded tokens
-    total_tokens = np.sum(mask).astype(float)
-
-    # Compute the accuracy
-    accuracy = correct_tokens / total_tokens if total_tokens > 0 else np.nan
-
-    # Return the metric in a dictionary
-    return {"mean_token_accuracy": accuracy}
-
-
 def create_pretrained_model_huggingface_name(wandb_config: Dict[str, Any]) -> str:
     init_model_name = wandb_config["model_config"]["model_name"].split("/")[-1]
-    benchmark = wandb_config["data_config"]["benchmark"].split("/")[-1]
     num_train_epochs = wandb_config["trainer_config"]["num_train_epochs"]
     overtrain_multiplier = wandb_config["trainer_config"]["overtrain_multiplier"]
-    num_benchmark_replicas_per_epoch = wandb_config["data_config"][
-        "num_benchmark_replicas_per_epoch"
-    ]
-    benchmark_subset_fraction = np.round(
-        wandb_config["data_config"]["benchmark_subset_fraction"], 4
-    )
-    pted_model_hf_name = f"mem_{init_model_name}_{benchmark}_rep_{num_benchmark_replicas_per_epoch}_sbst_{benchmark_subset_fraction:.4f}_epch_{num_train_epochs}_ot_{overtrain_multiplier}"
+    pted_model_hf_name = f"scaling_mem_{init_model_name}_epch_{num_train_epochs}_ot_{overtrain_multiplier}"
     if len(pted_model_hf_name) > 94:
         raise ValueError(f"pted_model_hf_name is too long: {pted_model_hf_name}")
     return pted_model_hf_name
@@ -435,7 +394,7 @@ def initialize_wandb():
                 config=src.globals.DEFAULT_PRETRAINING_CONFIG,
             )
         run_id = run.id
-        # get a plain dict so it's pickle/broadcast friendly
+        # Get a plain dict so it's pickle/broadcast friendly.
         cfg_dict = dict(wandb.config)
     else:
         # Do not initialize wandb at all on non-zero ranks
@@ -452,10 +411,10 @@ def initialize_wandb():
         torch.distributed.broadcast_object_list(obj_list, src=0)
         run_id, cfg_dict = obj_list
 
-    # Use a consistent per-run HF datasets cache across all ranks
+    # Use a consistent per-run HF datasets cache across all ranks.
     os.environ[
         "HF_DATASETS_CACHE"
-    ] = f"{os.getenv('LFS_HOME')}/KoyejoLab-Scoring-vs-Sampling-Memorization/cached_datasets/{run_id}"
+    ] = f"{os.getenv('LFS_HOME')}/KoyejoLab-Scaling-Memorization/cached_datasets/{run_id}"
 
     return run, run_id, cfg_dict
 
