@@ -87,24 +87,29 @@ def create_dataset_for_pretraining(
         else:
             raise ValueError
 
-        # Round up a bit to ensure we have more than we want.
+        # Subsample the appropriate number of documents without replacement.
+        print("Shuffling, subsampling and tokenizing the pretraining corpus.")
         estimated_docs_needed = int(
             1.1 * num_training_tokens_per_epoch / avg_tokens_per_doc
         )
+        num_total_docs = len(corpus_train_dataset)
+        all_indices = np.arange(num_total_docs)
+        rng = np.random.default_rng(data_config["shuffle_seed"])
+        rng.shuffle(all_indices)
+        if data_config["direction"] == "top":
+            # Work from the start of the shuffled list forwards
+            active_indices = all_indices
+        elif data_config["direction"] == "bot":
+            # Work from the end of the shuffled list backwards
+            active_indices = all_indices[::-1].copy()
+        else:
+            raise ValueError(
+                f"Impermissible value of direction (must be 'top' or 'bot'): {data_config['direction']}"
+            )
 
-        # Subsample the appropriate number of documents without replacement.
-        print("Shuffling, selecting and tokenizing the pretraining corpus.")
-        rng = np.random.default_rng(data_config["subset_seed"])
-        sample_indices = rng.choice(
-            len(corpus_train_dataset),
-            size=estimated_docs_needed,
-            replace=False,
-        )
-        corpus_train_dataset_subset = (
-            corpus_train_dataset.select(sample_indices)
-            .shuffle(seed=data_config["shuffle_seed"])
-            .map(tokenize_truncate_and_count, num_proc=num_proc)
-        )
+        corpus_train_dataset_subset = corpus_train_dataset.select(
+            active_indices[:estimated_docs_needed]
+        ).map(tokenize_truncate_and_count, num_proc=num_proc)
 
         # Figure out how many documents to drop to meet our target number of tokens.
         cumulative_lengths = np.cumsum(corpus_train_dataset_subset["token_length"])
@@ -115,11 +120,6 @@ def create_dataset_for_pretraining(
         # Select up to that index (+1 to be safe or inclusive)
         corpus_train_dataset_subset = corpus_train_dataset_subset.select(
             range(idx_to_keep + 1)
-        )
-
-        # Shuffle once more.
-        corpus_train_dataset_subset = corpus_train_dataset_subset.shuffle(
-            seed=data_config["shuffle_seed"]
         )
 
         # Remove unnecessary columns to reduce size, then save to disk.
@@ -142,10 +142,11 @@ def create_dataset_for_pretraining(
             COMPACT,
             num_proc=num_proc,
         )
-
         corpus_train_dataset_subset.save_to_disk(
             corpus_train_dataset_subset_cache_dir,
         )
+
+        # Now, we turn to the eval dataset: tokenize, truncate, count, write to disk, etc.
         corpus_eval_dataset = corpus_eval_dataset.map(
             tokenize_truncate_and_count,
             num_proc=num_proc,

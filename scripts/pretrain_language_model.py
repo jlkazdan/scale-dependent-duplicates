@@ -315,6 +315,8 @@ def compute_derived_hyperparameters(
     )
 
     additional_trainer_config_data = {
+        "gradient_accumulation_steps_unrounded": num_tokens_per_optimizer_step
+        / num_tokens_per_forward_pass,
         "gradient_accumulation_steps": gradient_accumulation_steps,
         "learning_rate": learning_rate,
         "num_visible_devices": torch.cuda.device_count(),  # local (per process)
@@ -344,10 +346,10 @@ def create_pretrained_model_huggingface_name(wandb_config: Dict[str, Any]) -> st
     num_train_epochs = wandb_config["trainer_config"]["num_train_epochs"]
     overtrain_multiplier = wandb_config["trainer_config"]["overtrain_multiplier"]
     seed = wandb_config["seed"]
+    direction = wandb_config["data_config"]["direction"]
     shuffle_seed = wandb_config["data_config"]["shuffle_seed"]
-    subset_seed = wandb_config["data_config"]["subset_seed"]
     train_test_split_seed = wandb_config["data_config"]["train_test_split_seed"]
-    pted_model_hf_name = f"scaling_mem_{init_model_name}_epch_{num_train_epochs}_ot_{overtrain_multiplier}_s={seed}_sbts={subset_seed}_shfs={shuffle_seed}_ttss={train_test_split_seed}"
+    pted_model_hf_name = f"scale_mem_{init_model_name}_epch_{num_train_epochs}_ot_{overtrain_multiplier}_s={seed}_dir={direction}_shfs={shuffle_seed}_ttss={train_test_split_seed}"
     if len(pted_model_hf_name) > 94:
         raise ValueError(f"pted_model_hf_name is too long: {pted_model_hf_name}")
     return pted_model_hf_name
@@ -355,8 +357,7 @@ def create_pretrained_model_huggingface_name(wandb_config: Dict[str, Any]) -> st
 
 def prepare_dataset_for_model(dataset: Dataset) -> Dataset:
     """Prepares a dataset for the Trainer by adding labels and removing unneeded columns."""
-    # 2. Remove all columns that are not expected by the model.
-    # This is more robust than specifying which to remove.
+    # Remove all columns that are not expected by the model.
     columns_to_keep = ["input_ids", "attention_mask"]
     columns_to_remove = [
         col for col in dataset.column_names if col not in columns_to_keep

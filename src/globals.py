@@ -1,8 +1,9 @@
 DEFAULT_PRETRAINING_CONFIG = {
     "data_config": {
         "corpus": "fineweb-edu-dedup",
+        "direction": "bot",
+        # "direction": "top",
         "shuffle_seed": 0,
-        "subset_seed": 0,
         "train_test_split_seed": 0,
     },
     "model_config": {

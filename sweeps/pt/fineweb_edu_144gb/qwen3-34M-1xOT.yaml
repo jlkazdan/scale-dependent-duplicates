@@ -14,10 +14,12 @@ parameters:
     parameters:
       corpus:
         values: ["fineweb-edu-dedup"]
+      direction:
+        values: ["top", "bot"]
       shuffle_seed:
         values: [0]
       subset_seed:
-        values: [ 0, 1, 2 ]
+        values: [ 0 ]
       train_test_split_seed:
         values: [0]
   model_config:
