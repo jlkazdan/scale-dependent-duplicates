@@ -359,7 +359,7 @@ def create_pretrained_model_huggingface_name(wandb_config: Dict[str, Any]) -> st
     direction = wandb_config["data_config"]["direction"]
     shuffle_seed = wandb_config["data_config"]["shuffle_seed"]
     train_test_split_seed = wandb_config["data_config"]["train_test_split_seed"]
-    pted_model_hf_name = f"scale_mem_{init_model_name}_epch_{num_train_epochs}_ot_{overtrain_multiplier}_s={seed}_dir={direction}_shfs={shuffle_seed}_ttss={train_test_split_seed}"
+    pted_model_hf_name = f"scale_mem_{init_model_name}_epch_{num_train_epochs}_ot_{overtrain_multiplier}_s_{seed}_dir={direction}_shfs={shuffle_seed}_ttss={train_test_split_seed}"
     if len(pted_model_hf_name) > 94:
         raise ValueError(f"pted_model_hf_name is too long: {pted_model_hf_name}")
     return pted_model_hf_name
