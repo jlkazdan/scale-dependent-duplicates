@@ -1,9 +1,15 @@
+# GPU Memory Usage
 
-- 34M
-  - Train BS=72:    115 GB
-- 48M
-  - Train BS=72:    115 GB
-- 63M
-  - Train BS=72:    121 GB
-- 93M
-  - Train BS=72:    121 GB
+## H200s
+
+| Model Size | Batch Size (BS) | Memory Usage | Status    |
+|:-----------|:---------------:|:------------:|:----------|
+| **34M**    |       72        |    115 GB    | ✅ Tested  |
+| **48M**    |       72        |    121 GB    | ✅ Tested  |
+| **63M**    |       72        |    121 GB    | ✅ Tested  |
+| **93M**    |       64        |    117 GB    | ✅ Tested  |
+| **153M**   |       64        |    131 GB    | ✅ Tested  |
+| **344M**   |       64        |     TBD      | ⏳ Pending |
+| **499M**   |       64        |     TBD      | ⏳ Pending |
+| **660M**   |       64        |     TBD      | ⏳ Pending |
+| **806M**   |       64        |     TBD      | ⏳ Pending |
