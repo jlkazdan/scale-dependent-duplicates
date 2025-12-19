@@ -13,15 +13,13 @@ parameters:
   data_config:
     parameters:
       corpus:
-        values: ["fineweb-edu-dedup"]
+        values: [ "fineweb-edu-dedup" ]
       direction:
-        values: ["top", "bot"]
+        values: [ "top", "bot" ]
       shuffle_seed:
-        values: [0]
-      subset_seed:
-        values: [ 0 ]
+        values: [ 0, 1 ]
       train_test_split_seed:
-        values: [0]
+        values: [ 0 ]
   model_config:
     parameters:
       attn_implementation:
