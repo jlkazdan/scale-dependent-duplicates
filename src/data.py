@@ -57,6 +57,8 @@ def create_dataset_for_pretraining(
     corpus_eval_dataset_cache_dir = os.path.join(hf_cache_root, "corpus_eval_tokenized")
 
     if _is_main():
+        num_proc = min(32, os.cpu_count())
+
         num_train_epochs = trainer_config["num_train_epochs"]
         num_training_tokens_per_epoch = trainer_config["num_training_tokens_per_epoch"]
         target_num_training_tokens_total = trainer_config[
@@ -70,9 +72,9 @@ def create_dataset_for_pretraining(
                 "HuggingFaceTB/smollm-corpus",
                 "fineweb-edu-dedup",
                 split="train",  # This is the only split that exists.
-                num_proc=min(16, os.cpu_count()),
+                num_proc=num_proc,
             )
-            # The full dataset is 220B tokens in 190168005 rows.
+            # The full dataset is 220B tokens in 190,168,005 rows.
             # We want 150M tokens for test.
             corpus_split_dataset = corpus_full_dataset.train_test_split(
                 test_size=150e6 / 220e9,
@@ -81,20 +83,18 @@ def create_dataset_for_pretraining(
             print("Split corpus into train and test")
             corpus_train_dataset = corpus_split_dataset["train"]
             corpus_eval_dataset = corpus_split_dataset["test"]
-            avg_tokens_per_doc = 220e9 / 190168005
+            avg_tokens_per_doc = 794
         else:
             raise ValueError
 
         # Round up a bit to ensure we have more than we want.
         estimated_docs_needed = int(
-            1.05 * num_training_tokens_per_epoch / avg_tokens_per_doc
+            1.1 * num_training_tokens_per_epoch / avg_tokens_per_doc
         )
 
-        # Subsample the appropriate number of documents and tokenize.
+        # Subsample the appropriate number of documents without replacement.
         print("Shuffling, selecting and tokenizing the pretraining corpus.")
-        # With this (sample indices directly, then optionally shuffle only the subset):
-        rng = np.random.default_rng(data_config["shuffle_seed"])
-        # sample without replacement from the 190M rows
+        rng = np.random.default_rng(data_config["subset_seed"])
         sample_indices = rng.choice(
             len(corpus_train_dataset),
             size=estimated_docs_needed,
@@ -103,24 +103,21 @@ def create_dataset_for_pretraining(
         corpus_train_dataset_subset = (
             corpus_train_dataset.select(sample_indices)
             .shuffle(seed=data_config["shuffle_seed"])
-            .map(tokenize_truncate_and_count, num_proc=min(32, os.cpu_count()))
+            .map(tokenize_truncate_and_count, num_proc=num_proc)
         )
 
         # Figure out how many documents to drop to meet our target number of tokens.
-        num_tokens_in_corpus_dataset_subset = np.sum(
-            corpus_train_dataset_subset["token_length"]
-        )
-        num_documents_to_drop = 0
-        for num_tokens_in_document in corpus_train_dataset_subset["token_length"][::-1]:
-            num_tokens_in_corpus_dataset_subset -= num_tokens_in_document
-            num_documents_to_drop += 1
-            if num_tokens_in_corpus_dataset_subset < num_training_tokens_per_epoch:
-                break
+        cumulative_lengths = np.cumsum(corpus_train_dataset_subset["token_length"])
+        # Find the index where we exceed the target.
+        # This finds the first index where the sum is >= target.
+        idx_to_keep = np.searchsorted(cumulative_lengths, num_training_tokens_per_epoch)
 
+        # Select up to that index (+1 to be safe or inclusive)
         corpus_train_dataset_subset = corpus_train_dataset_subset.select(
-            range(len(corpus_train_dataset_subset) - num_documents_to_drop)
+            range(idx_to_keep + 1)
         )
 
+        # Shuffle once more.
         corpus_train_dataset_subset = corpus_train_dataset_subset.shuffle(
             seed=data_config["shuffle_seed"]
         )
@@ -141,20 +138,27 @@ def create_dataset_for_pretraining(
                 "token_length": Value("int32"),
             }
         )
-        corpus_train_dataset_subset = corpus_train_dataset_subset.cast(COMPACT)
+        corpus_train_dataset_subset = corpus_train_dataset_subset.cast(
+            COMPACT,
+            num_proc=num_proc,
+        )
 
         corpus_train_dataset_subset.save_to_disk(
             corpus_train_dataset_subset_cache_dir,
         )
         corpus_eval_dataset = corpus_eval_dataset.map(
-            tokenize_truncate_and_count, num_proc=min(4, os.cpu_count())
+            tokenize_truncate_and_count,
+            num_proc=num_proc,
         )
         cols_to_drop_eval = [
             c for c in corpus_eval_dataset.column_names if c not in cols_to_keep
         ]
         corpus_eval_dataset = corpus_eval_dataset.remove_columns(cols_to_drop_eval)
 
-        corpus_eval_dataset = corpus_eval_dataset.cast(COMPACT)
+        corpus_eval_dataset = corpus_eval_dataset.cast(
+            COMPACT,
+            num_proc=num_proc,
+        )
         corpus_eval_dataset.save_to_disk(
             corpus_eval_dataset_cache_dir,
         )

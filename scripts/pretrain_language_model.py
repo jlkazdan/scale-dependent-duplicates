@@ -52,7 +52,6 @@ import wandb
 import src.data
 import src.globals
 import src.models
-import src.trainer
 
 
 logging.basicConfig(level=logging.INFO)
@@ -216,12 +215,12 @@ def pretrain():
         separator_id=-100,  # ensures no cross-example predictions
     )
 
-    trainer = src.trainer.ZLossTrainer(
+    trainer = Trainer(
         model=model,
         processing_class=tokenizer,
         args=pretraining_config,
         train_dataset=train_dataset,
-        eval_dataset={"eval": eval_dataset},
+        eval_dataset=eval_dataset,
         data_collator=data_collator,
     )
 
@@ -346,8 +345,9 @@ def create_pretrained_model_huggingface_name(wandb_config: Dict[str, Any]) -> st
     overtrain_multiplier = wandb_config["trainer_config"]["overtrain_multiplier"]
     seed = wandb_config["seed"]
     shuffle_seed = wandb_config["data_config"]["shuffle_seed"]
+    subset_seed = wandb_config["data_config"]["subset_seed"]
     train_test_split_seed = wandb_config["data_config"]["train_test_split_seed"]
-    pted_model_hf_name = f"scaling_mem_{init_model_name}_epch_{num_train_epochs}_ot_{overtrain_multiplier}_s={seed}_shfs={shuffle_seed}_ttss={train_test_split_seed}"
+    pted_model_hf_name = f"scaling_mem_{init_model_name}_epch_{num_train_epochs}_ot_{overtrain_multiplier}_s={seed}_sbts={subset_seed}_shfs={shuffle_seed}_ttss={train_test_split_seed}"
     if len(pted_model_hf_name) > 94:
         raise ValueError(f"pted_model_hf_name is too long: {pted_model_hf_name}")
     return pted_model_hf_name

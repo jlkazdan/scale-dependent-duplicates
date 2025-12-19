@@ -3,6 +3,8 @@ import torch, torch.nn.functional as F
 
 
 # Copied from https://discuss.huggingface.co/t/working-with-olmo2-want-to-know-if-z-loss-is-implemented/168522/2
+# TODO: Fix this. It currently throws an error:
+# [rank0]: TypeError: ZLossTrainer.compute_loss() got an unexpected keyword argument 'num_items_in_batch'
 class ZLossTrainer(Trainer):
     def compute_loss(self, model, inputs, return_outputs=False):
         labels = inputs.get("labels")
