@@ -57,7 +57,6 @@ def create_dataset_for_pretraining(
     corpus_eval_dataset_cache_dir = os.path.join(hf_cache_root, "corpus_eval_tokenized")
 
     if _is_main():
-
         num_train_epochs = trainer_config["num_train_epochs"]
         num_training_tokens_per_epoch = trainer_config["num_training_tokens_per_epoch"]
         target_num_training_tokens_total = trainer_config[
@@ -130,7 +129,9 @@ def create_dataset_for_pretraining(
         cols_to_drop = [
             c for c in corpus_train_dataset_subset.column_names if c not in cols_to_keep
         ]
-        corpus_train_dataset_subset = corpus_train_dataset_subset.remove_columns(cols_to_drop)
+        corpus_train_dataset_subset = corpus_train_dataset_subset.remove_columns(
+            cols_to_drop
+        )
 
         # Cut the Arrow buffers in half by casting dtypes before saving (no semantic change).
         COMPACT = Features(

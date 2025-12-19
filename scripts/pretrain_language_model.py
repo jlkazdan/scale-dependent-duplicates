@@ -52,6 +52,7 @@ import wandb
 import src.data
 import src.globals
 import src.models
+import src.trainer
 
 
 logging.basicConfig(level=logging.INFO)
@@ -139,6 +140,8 @@ def pretrain():
         wandb_config["trainer_config"]["fp16"] = False
 
     pretraining_config = TrainingArguments(
+        adam_beta1=wandb_config["trainer_config"]["adam_beta1"],
+        adam_beta2=wandb_config["trainer_config"]["adam_beta2"],
         bf16=wandb_config["trainer_config"]["bf16"],
         data_seed=wandb_config["trainer_config"]["data_seed"],
         dataloader_drop_last=wandb_config["trainer_config"]["dataloader_drop_last"],
@@ -184,8 +187,8 @@ def pretrain():
         save_total_limit=wandb_config["trainer_config"]["save_total_limit"],
         seed=wandb_config["seed"],
         torch_compile=wandb_config["trainer_config"]["torch_compile"],
-        warmup_steps=wandb_config["trainer_config"]["warmup_steps"],
-        # warmup_ratio=wandb_config["trainer_config"]["warmup_ratio"],
+        # warmup_steps=wandb_config["trainer_config"]["warmup_steps"],
+        warmup_ratio=wandb_config["trainer_config"]["warmup_ratio"],
         weight_decay=wandb_config["trainer_config"]["weight_decay"],
     )
 
@@ -213,7 +216,7 @@ def pretrain():
         separator_id=-100,  # ensures no cross-example predictions
     )
 
-    trainer = Trainer(
+    trainer = src.trainer.ZLossTrainer(
         model=model,
         processing_class=tokenizer,
         args=pretraining_config,
@@ -341,7 +344,10 @@ def create_pretrained_model_huggingface_name(wandb_config: Dict[str, Any]) -> st
     init_model_name = wandb_config["model_config"]["model_name"].split("/")[-1]
     num_train_epochs = wandb_config["trainer_config"]["num_train_epochs"]
     overtrain_multiplier = wandb_config["trainer_config"]["overtrain_multiplier"]
-    pted_model_hf_name = f"scaling_mem_{init_model_name}_epch_{num_train_epochs}_ot_{overtrain_multiplier}"
+    seed = wandb_config["seed"]
+    shuffle_seed = wandb_config["data_config"]["shuffle_seed"]
+    train_test_split_seed = wandb_config["data_config"]["train_test_split_seed"]
+    pted_model_hf_name = f"scaling_mem_{init_model_name}_epch_{num_train_epochs}_ot_{overtrain_multiplier}_s={seed}_shfs={shuffle_seed}_ttss={train_test_split_seed}"
     if len(pted_model_hf_name) > 94:
         raise ValueError(f"pted_model_hf_name is too long: {pted_model_hf_name}")
     return pted_model_hf_name

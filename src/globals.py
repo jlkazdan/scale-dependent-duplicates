@@ -14,6 +14,8 @@ DEFAULT_PRETRAINING_CONFIG = {
         "torch_dtype": "bfloat16",
     },
     "trainer_config": {
+        "adam_beta1": 0.9,
+        "adam_beta2": 0.95,
         "data_seed": 0,
         "dataloader_drop_last": True,
         "dataloader_num_workers": 4,
@@ -45,9 +47,8 @@ DEFAULT_PRETRAINING_CONFIG = {
         "save_strategy": "no",
         "save_total_limit": 1,
         "torch_compile": False,
-        # "warmup_ratio": 0.025,
-        "warmup_steps": 100,
-        "weight_decay": 0.0,
+        "warmup_ratio": 0.2,
+        "weight_decay": 0.01,
     },
     "seed": 0,
 }
