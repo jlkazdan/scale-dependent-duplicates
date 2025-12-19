@@ -51,100 +51,33 @@ def create_dataset_for_pretraining(
         os.getcwd(), ".hf_cache"
     )
     os.makedirs(hf_cache_root, exist_ok=True)
-    final_train_dataset_cache_dir = os.path.join(
+    corpus_train_dataset_subset_cache_dir = os.path.join(
         hf_cache_root, "corpus_subset_tokenized"
     )
     corpus_eval_dataset_cache_dir = os.path.join(hf_cache_root, "corpus_eval_tokenized")
 
-    # Load the benchmark.
-    benchmark_test_split_dataset = create_dataset_for_supervised_finetuning(
-        dataset_name=data_config["benchmark"],
-        tokenizer=tokenizer,
-        remove_columns=False,
-    )["eval"]
-
-    # Remove unnecessary columns from the benchmark.
-    cols_to_keep = {"input_ids", "attention_mask", "token_length"}
-    benchmark_test_split_dataset = benchmark_test_split_dataset.remove_columns(
-        [
-            col
-            for col in benchmark_test_split_dataset.column_names
-            if col not in cols_to_keep
-        ]
-    )
-
-    # Subsample then shuffle the benchmark as specified.
-    num_benchmark_samples_to_subsample = int(
-        data_config["benchmark_subset_fraction"] * len(benchmark_test_split_dataset)
-    )
-    # Make sure we take at least 1 sample.
-    num_benchmark_samples_to_subsample = max(
-        1,
-        num_benchmark_samples_to_subsample,
-    )
-    benchmark_test_split_dataset = benchmark_test_split_dataset.shuffle(
-        seed=data_config["benchmark_shuffle_seed"]
-    ).select(range(num_benchmark_samples_to_subsample))
-
-    # Replicate the benchmark.
-    if data_config["num_benchmark_replicas_per_epoch"] > 0:
-        replicated_benchmark_test_split_dataset = concatenate_datasets(
-            [
-                benchmark_test_split_dataset
-                for _ in range(data_config["num_benchmark_replicas_per_epoch"])
-            ]
-        )
-    elif data_config["num_benchmark_replicas_per_epoch"] == 0:
-        # Select none of the rows to create an empty dataset.
-        replicated_benchmark_test_split_dataset = benchmark_test_split_dataset.select(
-            range(0)
-        )
-    else:
-        raise ValueError(
-            f"Invalid num_benchmark_replicas_per_epoch ({data_config['num_benchmark_replicas_per_epoch']})"
-        )
-
-    # Figure out how many tokens we need to take from the corpus to make up the target.
-    replicated_benchmark_test_split_num_tokens = np.sum(
-        replicated_benchmark_test_split_dataset["token_length"]
-    )
-    num_training_tokens_per_epoch = trainer_config["num_training_tokens_per_epoch"]
-    target_num_training_tokens_total = trainer_config[
-        "target_num_training_tokens_total"
-    ]
-    num_train_epochs = trainer_config["num_train_epochs"]
-
     if _is_main():
-        print(
-            f"Num. Replicas of Benchmark Test Split Per Epoch: {data_config['num_benchmark_replicas_per_epoch']}\n"
-            f"Replicated Benchmark Test Split has {replicated_benchmark_test_split_num_tokens:,} tokens."
-        )
 
-        if num_training_tokens_per_epoch < replicated_benchmark_test_split_num_tokens:
-            raise ValueError(
-                f"num_training_tokens_per_epoch ({num_training_tokens_per_epoch:,}) is smaller than replicated_benchmark_test_split_num_tokens_per_token ({replicated_benchmark_test_split_num_tokens:,})."
-            )
+        num_train_epochs = trainer_config["num_train_epochs"]
+        num_training_tokens_per_epoch = trainer_config["num_training_tokens_per_epoch"]
+        target_num_training_tokens_total = trainer_config[
+            "target_num_training_tokens_total"
+        ]
 
-        corpus_tokens_needed_per_epoch = int(
-            num_training_tokens_per_epoch - replicated_benchmark_test_split_num_tokens
-        )
-
-        print(
-            f"Tokens needed from corpus: {num_training_tokens_per_epoch:,} - {replicated_benchmark_test_split_num_tokens:,} = {corpus_tokens_needed_per_epoch:,}"
-        )
+        cols_to_keep = {"input_ids", "attention_mask", "token_length"}
 
         if data_config["corpus"] == "fineweb-edu-dedup":
             corpus_full_dataset = load_dataset(
                 "HuggingFaceTB/smollm-corpus",
                 "fineweb-edu-dedup",
-                split="train",
+                split="train",  # This is the only split that exists.
                 num_proc=min(16, os.cpu_count()),
             )
             # The full dataset is 220B tokens in 190168005 rows.
             # We want 150M tokens for test.
             corpus_split_dataset = corpus_full_dataset.train_test_split(
                 test_size=150e6 / 220e9,
-                seed=0,
+                seed=data_config["train_test_split_seed"],
             )
             print("Split corpus into train and test")
             corpus_train_dataset = corpus_split_dataset["train"]
@@ -155,7 +88,7 @@ def create_dataset_for_pretraining(
 
         # Round up a bit to ensure we have more than we want.
         estimated_docs_needed = int(
-            1.05 * corpus_tokens_needed_per_epoch / avg_tokens_per_doc
+            1.05 * num_training_tokens_per_epoch / avg_tokens_per_doc
         )
 
         # Subsample the appropriate number of documents and tokenize.
@@ -171,7 +104,7 @@ def create_dataset_for_pretraining(
         corpus_train_dataset_subset = (
             corpus_train_dataset.select(sample_indices)
             .shuffle(seed=data_config["shuffle_seed"])
-            .map(tokenize_truncate_and_count, num_proc=min(16, os.cpu_count()))
+            .map(tokenize_truncate_and_count, num_proc=min(32, os.cpu_count()))
         )
 
         # Figure out how many documents to drop to meet our target number of tokens.
@@ -182,42 +115,35 @@ def create_dataset_for_pretraining(
         for num_tokens_in_document in corpus_train_dataset_subset["token_length"][::-1]:
             num_tokens_in_corpus_dataset_subset -= num_tokens_in_document
             num_documents_to_drop += 1
-            if num_tokens_in_corpus_dataset_subset < corpus_tokens_needed_per_epoch:
+            if num_tokens_in_corpus_dataset_subset < num_training_tokens_per_epoch:
                 break
 
         corpus_train_dataset_subset = corpus_train_dataset_subset.select(
             range(len(corpus_train_dataset_subset) - num_documents_to_drop)
         )
 
-        # Create the dataset we will train on.
-        print("Concatenated replicated benchmark test split and pretraining corpus.")
-        final_train_dataset = concatenate_datasets(
-            [replicated_benchmark_test_split_dataset, corpus_train_dataset_subset]
-        )
-        final_train_dataset = final_train_dataset.shuffle(
+        corpus_train_dataset_subset = corpus_train_dataset_subset.shuffle(
             seed=data_config["shuffle_seed"]
         )
 
         # Remove unnecessary columns to reduce size, then save to disk.
         cols_to_drop = [
-            c for c in final_train_dataset.column_names if c not in cols_to_keep
+            c for c in corpus_train_dataset_subset.column_names if c not in cols_to_keep
         ]
-        final_train_dataset = final_train_dataset.remove_columns(cols_to_drop)
+        corpus_train_dataset_subset = corpus_train_dataset_subset.remove_columns(cols_to_drop)
 
-        # # Cut the Arrow buffers in half by casting dtypes before saving (no semantic change).
-        # COMPACT = Features(
-        #     {
-        #         "input_ids": Sequence(Value("int32")),
-        #         "attention_mask": Sequence(Value("bool")),
-        #         "token_length": Value("int32"),
-        #     }
-        # )
-        # final_train_dataset = final_train_dataset.cast(COMPACT)
+        # Cut the Arrow buffers in half by casting dtypes before saving (no semantic change).
+        COMPACT = Features(
+            {
+                "input_ids": Sequence(Value("int32")),
+                "attention_mask": Sequence(Value("bool")),
+                "token_length": Value("int32"),
+            }
+        )
+        corpus_train_dataset_subset = corpus_train_dataset_subset.cast(COMPACT)
 
-        final_train_dataset.save_to_disk(
-            final_train_dataset_cache_dir,
-            # num_proc=min(4, os.cpu_count()),
-            # max_shard_size="100MB",
+        corpus_train_dataset_subset.save_to_disk(
+            corpus_train_dataset_subset_cache_dir,
         )
         corpus_eval_dataset = corpus_eval_dataset.map(
             tokenize_truncate_and_count, num_proc=min(4, os.cpu_count())
@@ -227,14 +153,12 @@ def create_dataset_for_pretraining(
         ]
         corpus_eval_dataset = corpus_eval_dataset.remove_columns(cols_to_drop_eval)
 
-        # corpus_eval_dataset = corpus_eval_dataset.cast(COMPACT)
+        corpus_eval_dataset = corpus_eval_dataset.cast(COMPACT)
         corpus_eval_dataset.save_to_disk(
             corpus_eval_dataset_cache_dir,
-            # num_proc=min(2, os.cpu_count()),
-            # max_shard_size="100MB",
         )
 
-        total_tokens_per_epoch = np.sum(final_train_dataset["token_length"])
+        total_tokens_per_epoch = np.sum(corpus_train_dataset_subset["token_length"])
         print(
             f"Final dataset created with {total_tokens_per_epoch:,} tokens.\n"
             f"With {num_train_epochs:,} training epochs, total training tokens: {num_train_epochs * total_tokens_per_epoch:,}\n"
@@ -249,13 +173,12 @@ def create_dataset_for_pretraining(
         torch.distributed.barrier()  # non-zero ranks wait for rank 0 to finish
 
     # All processes load the datasets from disk.
-    final_train_dataset = load_from_disk(final_train_dataset_cache_dir)
+    corpus_train_dataset_subset = load_from_disk(corpus_train_dataset_subset_cache_dir)
     corpus_eval_dataset = load_from_disk(corpus_eval_dataset_cache_dir)
 
     datasets_dict = {
-        "train": final_train_dataset,
+        "train": corpus_train_dataset_subset,
         "eval": corpus_eval_dataset,
-        "benchmark": benchmark_test_split_dataset,
     }
 
     return datasets_dict

@@ -1,27 +1,11 @@
-DEFAULT_EVALUATION_CONFIG = {
-    "data_config": {
-        "dataset": "EleutherAI/minerva_math",
-        # "dataset": "madrylab/gsm8k-platinum",
-        "shuffle_seed": 0,
-    },
-    "max_tokens": 2048,
-    "model_config": {
-        "model": "RylanSchaeffer/mem_Qwen3-34M_minerva_math_replicas_316_epch_1_ot_1_pt",
-        "dtype": "bfloat16",
-        "enforce_eager": True,
-    },
-    "seed": 0,
-    "temperature": 0.0,
-}
-
 DEFAULT_PRETRAINING_CONFIG = {
     "data_config": {
         "corpus": "fineweb-edu-dedup",
         "shuffle_seed": 0,
+        "train_test_split_seed": 0,
     },
     "model_config": {
         "attn_implementation": "flash_attention_2",
-        # "attn_implementation": "sdpa",
         "model_name": "Qwen3/Qwen3-48M",
         # "model_name": "Qwen3/Qwen3-62M",
         # "model_name": "Qwen3/Qwen3-93M",
@@ -62,7 +46,7 @@ DEFAULT_PRETRAINING_CONFIG = {
         "save_total_limit": 1,
         "torch_compile": False,
         # "warmup_ratio": 0.025,
-        "warmup_steps": 250,
+        "warmup_steps": 100,
         "weight_decay": 0.0,
     },
     "seed": 0,

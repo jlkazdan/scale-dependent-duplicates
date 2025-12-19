@@ -389,12 +389,12 @@ def initialize_wandb():
             run = wandb.init()
         else:
             run = wandb.init(
-                project="memorization-scoring-vs-sampling-pt",
+                project="scaling-memorization-pt",
                 entity="rylan",
                 config=src.globals.DEFAULT_PRETRAINING_CONFIG,
             )
         run_id = run.id
-        # Get a plain dict so it's pickle/broadcast friendly.
+        # Get a plain dict so it's pickle and/or broadcast-friendly.
         cfg_dict = dict(wandb.config)
     else:
         # Do not initialize wandb at all on non-zero ranks
