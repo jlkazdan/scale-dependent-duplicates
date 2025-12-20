@@ -55,7 +55,7 @@ parameters:
       base_learning_rate:
         values: [ 0.000001 ]
       logging_steps:
-        values: [ 25 ]
+        values: [ 50 ]
       lr_scheduler_type:
         values: [ "cosine" ]
       max_grad_norm:

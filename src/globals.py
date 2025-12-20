@@ -1,3 +1,22 @@
+DEFAULT_EVALUATION_CONFIG = {
+    "data_config": {
+        "corpus": "fineweb-edu-dedup",
+        "direction": "bot",
+        # "direction": "top",
+        "shuffle_seed": 0,
+        "train_test_split_seed": 0,
+    },
+    "model_config": {
+        "attn_implementation": "flash_attention_2",
+        "model": "RylanSchaeffer/mem_Qwen3-34M_minerva_math_replicas_316_epch_1_ot_1_pt",
+        "torch_dtype": "bfloat16",
+    },
+    "trainer_config": {
+        "max_tokens": 2048,
+    },
+    "num_sequences": 1e4,
+}
+
 DEFAULT_PRETRAINING_CONFIG = {
     "data_config": {
         "corpus": "fineweb-edu-dedup",

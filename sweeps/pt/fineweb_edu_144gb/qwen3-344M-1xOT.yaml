@@ -55,7 +55,7 @@ parameters:
       base_learning_rate:
         values: [ 0.000001 ]
       logging_steps:
-        values: [ 25 ]
+        values: [ 50 ]
       lr_scheduler_type:
         values: [ "cosine" ]
       max_grad_norm:
@@ -71,7 +71,7 @@ parameters:
       overtrain_multiplier:
         values: [ 1.0 ]
       per_device_eval_batch_size:
-        values: [ 48 ]
+        values: [ 52 ]
       per_device_train_batch_size:
         values: [ 48 ]
       remove_unused_columns:
