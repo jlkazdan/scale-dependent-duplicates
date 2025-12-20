@@ -17,7 +17,7 @@ import torch
 import torch.distributed as dist
 from torch.utils.data import Dataset
 from transformers import PreTrainedTokenizer
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Set, Union
 import yaml
 
 
@@ -25,7 +25,12 @@ def create_dataset_for_pretraining(
     data_config: Dict[str, Any],
     trainer_config: Dict[str, Any],
     tokenizer: PreTrainedTokenizer,
+    cols_to_keep: Optional[Set[str]] = None,
+    num_proc: Optional[int] = 32,
 ) -> Dict[str, Union[Dataset, List[Dataset]]]:
+    if cols_to_keep is None:
+        cols_to_keep = {"input_ids", "attention_mask", "token_length"}
+
     # TODO: Spin this out to a top level function.
     # https://chatgpt.com/share/68f0657f-fab0-800d-8329-a8c8acf18ac8
     def tokenize_truncate_and_count(example):
@@ -57,15 +62,13 @@ def create_dataset_for_pretraining(
     corpus_eval_dataset_cache_dir = os.path.join(hf_cache_root, "corpus_eval_tokenized")
 
     if _is_main():
-        num_proc = min(32, os.cpu_count())
+        num_proc = min(num_proc, os.cpu_count())
 
         num_train_epochs = trainer_config["num_train_epochs"]
         num_training_tokens_per_epoch = trainer_config["num_training_tokens_per_epoch"]
         target_num_training_tokens_total = trainer_config[
             "target_num_training_tokens_total"
         ]
-
-        cols_to_keep = {"input_ids", "attention_mask", "token_length"}
 
         if data_config["corpus"] == "fineweb-edu-dedup":
             corpus_full_dataset = load_dataset(
@@ -74,6 +77,10 @@ def create_dataset_for_pretraining(
                 split="train",  # This is the only split that exists.
                 num_proc=num_proc,
             )
+            # Add indices for tracking samples.
+            indices = np.arange(len(corpus_full_dataset), dtype=int)
+            corpus_full_dataset = corpus_full_dataset.add_column("index", indices)
+
             # The full dataset is 220B tokens in 190,168,005 rows.
             # We want 150M tokens for test.
             corpus_split_dataset = corpus_full_dataset.train_test_split(
@@ -83,6 +90,8 @@ def create_dataset_for_pretraining(
             print("Split corpus into train and test")
             corpus_train_dataset = corpus_split_dataset["train"]
             corpus_eval_dataset = corpus_split_dataset["test"]
+            # Note: I thought this should be 220e9 tokens across 190e6 documents, for an average around 1156.
+            # But when I numerically calculated the average tokens per document, it was around 794.
             avg_tokens_per_doc = 794
         else:
             raise ValueError

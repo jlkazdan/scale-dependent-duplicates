@@ -8,13 +8,14 @@ DEFAULT_EVALUATION_CONFIG = {
     },
     "model_config": {
         "attn_implementation": "flash_attention_2",
-        "model": "RylanSchaeffer/mem_Qwen3-34M_minerva_math_replicas_316_epch_1_ot_1_pt",
+        "model_name": "RylanSchaeffer/scale_mem_Qwen3-48M_epch_1_ot_1_s_0_dir_bot_shfs_1_ttss_0",
         "torch_dtype": "bfloat16",
     },
     "trainer_config": {
-        "max_tokens": 2048,
+        "max_length": 2048,
+        "num_train_epochs": 1,
+        "target_num_training_tokens_total": 10_000_000,
     },
-    "num_sequences": 1e4,
 }
 
 DEFAULT_PRETRAINING_CONFIG = {

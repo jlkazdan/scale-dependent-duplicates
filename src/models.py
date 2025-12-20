@@ -34,16 +34,18 @@ qwen3_parameters_to_depths_and_widths = {
 def create_causalm_for_pretraining(
     model_config_dict: Dict[str, Any]
 ) -> PreTrainedModel:
-    if model_config_dict["torch_dtype"] == "bfloat16":
-        torch_dtype = torch.bfloat16
-    elif model_config_dict["torch_dtype"] == "float16":
-        torch_dtype = torch.float16
-    elif model_config_dict["torch_dtype"] == "float32":
-        torch_dtype = torch.float32
-    else:
-        raise NotImplementedError
+    model_name = model_config_dict["model_name"]
 
-    if model_config_dict["model_name"].startswith("Qwen3/Qwen3-"):
+    if model_name.startswith("Qwen3/Qwen3-"):
+        if model_config_dict["torch_dtype"] == "bfloat16":
+            torch_dtype = torch.bfloat16
+        elif model_config_dict["torch_dtype"] == "float16":
+            torch_dtype = torch.float16
+        elif model_config_dict["torch_dtype"] == "float32":
+            torch_dtype = torch.float32
+        else:
+            raise NotImplementedError
+
         from transformers import Qwen3Config, Qwen3ForCausalLM
 
         num_parameters_str: str = model_config_dict["model_name"].split("-")[1]
@@ -56,20 +58,18 @@ def create_causalm_for_pretraining(
             intermediate_size=intermediate_size,
             torch_dtype=torch_dtype,
         )
-        # model_class = Qwen3ForCausalLM
+        model = AutoModelForCausalLM.from_config(
+            model_config,
+            # dtype=torch_dtype,
+            attn_implementation=model_config_dict.get("attn_implementation", "eager"),
+        )
 
+    elif model_name.startswith("RylanSchaeffer/scale_mem_Qwen3"):
+        model = AutoModelForCausalLM.from_pretrained(
+            model_name,
+        )
     else:
         raise ValueError(model_config_dict["model_name"])
-
-    # model: PreTrainedModel = model_class(
-    #     config=model_config,
-    # )
-
-    model = AutoModelForCausalLM.from_config(
-        model_config,
-        # dtype=torch_dtype,
-        attn_implementation=model_config_dict.get("attn_implementation", "eager"),
-    )
 
     return model
 
