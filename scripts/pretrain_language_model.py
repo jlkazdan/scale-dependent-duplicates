@@ -221,8 +221,8 @@ def pretrain():
     eval_dataset = prepare_dataset_for_model(eval_dataset)
 
     data_collator = DataCollatorWithFlattening(
-        return_position_ids=True,  # default True; explicit for clarity
-        separator_id=-100,  # ensures no cross-example predictions
+        return_position_ids=True,  # default True; explicit for clarity.
+        separator_id=-100,  # ensures no cross-example predictions.
     )
 
     trainer = Trainer(

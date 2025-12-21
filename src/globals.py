@@ -12,6 +12,7 @@ DEFAULT_EVALUATION_CONFIG = {
         "torch_dtype": "bfloat16",
     },
     "trainer_config": {
+        "batch_size": 40,
         "max_length": 2048,
         "num_train_epochs": 1,
         "target_num_training_tokens_total": 10_000_000,

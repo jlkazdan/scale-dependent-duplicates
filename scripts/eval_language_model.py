@@ -30,7 +30,7 @@ import torch
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from transformers import AutoTokenizer, default_data_collator
+from transformers import AutoTokenizer, DataCollatorWithPadding
 from typing import Any, Dict, List
 import wandb
 
@@ -92,24 +92,41 @@ def score_lm_nll_on_datasets(wandb_config: Dict[str, Any]):
     # We use CrossEntropyLoss with reduction='none' to get token-level loss
     loss_fct = torch.nn.CrossEntropyLoss(reduction="none")
 
+    data_collator = src.data.StringHandlingDataCollator(
+        DataCollatorWithPadding(
+            tokenizer=tokenizer,
+            padding="max_length",
+            max_length=wandb_config["trainer_config"]["max_length"] + 1,
+            return_tensors="pt",
+        )
+    )
+
     print("Starting Evaluation Loop...")
     model.eval()
     for split, dataset in datasets_dict.items():
         dataloader = DataLoader(
             dataset,
             batch_size=wandb_config["trainer_config"]["batch_size"],
-            collate_fn=default_data_collator,
+            collate_fn=data_collator,
             num_workers=4,
             pin_memory=True,
             drop_last=False,
         )
 
         max_length = wandb_config["trainer_config"]["max_length"]
-
         for batch in tqdm(dataloader):
-            input_ids = batch["input_ids"][:, max_length].to(model.device)
-            attention_mask = batch["attention_mask"][:, max_length].to(model.device)
-            indices = batch["index"]
+            print(1)
+            input_ids = (
+                torch.tensor(batch["input_ids"][:max_length])
+                .to(model.device)
+                .reshape(1, -1)
+            )
+            attention_mask = (
+                torch.tensor(batch["attention_mask"][:max_length])
+                .to(model.device)
+                .reshape(1, -1)
+            )
+            indices = batch["id"]
 
             with torch.no_grad():
                 logits_BLV = model(
@@ -140,7 +157,7 @@ def score_lm_nll_on_datasets(wandb_config: Dict[str, Any]):
                 valid_tokens_per_seq = shift_mask.sum(dim=1)
 
                 # Store results
-                indices_np = indices.numpy()
+                indices_np = indices
                 nll_np = nll_mean_per_seq.float().cpu().numpy()
                 lens_np = valid_tokens_per_seq.float().cpu().numpy()
 

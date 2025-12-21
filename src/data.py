@@ -29,6 +29,23 @@ DEFAULT_COMPRESSION_TYPES = {
 }
 
 
+class StringHandlingDataCollator:
+    def __init__(self, hf_collator):
+        self.hf_collator = hf_collator
+
+    def __call__(self, features: List[Dict[str, Any]]) -> Dict[str, Any]:
+        # 1. Extract the string IDs so the HF collator doesn't see them
+        ids = [feature.pop("id") for feature in features if "id" in feature]
+
+        # 2. Use the standard HF collator for input_ids, attention_mask, etc.
+        # This returns a dictionary of PyTorch tensors
+        batch = self.hf_collator(features)
+
+        # 3. Add the IDs back into the batch as a list of strings
+        batch["id"] = ids
+        return batch
+
+
 def create_dataset_for_pretraining(
     data_config: Dict[str, Any],
     trainer_config: Dict[str, Any],
@@ -69,7 +86,7 @@ def create_dataset_for_pretraining(
     corpus_eval_dataset_cache_dir = os.path.join(hf_cache_root, "corpus_eval_tokenized")
 
     if _is_main():
-        num_proc = min(32, os.cpu_count())
+        num_proc = min(64, os.cpu_count())
 
         num_train_epochs = trainer_config["num_train_epochs"]
         num_training_tokens_per_epoch = trainer_config["num_training_tokens_per_epoch"]
