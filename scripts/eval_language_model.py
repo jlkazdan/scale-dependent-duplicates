@@ -86,8 +86,7 @@ def score_lm_nll_on_datasets(wandb_config: Dict[str, Any]):
         data_config=wandb_config["data_config"],
         trainer_config=wandb_config["trainer_config"],
         tokenizer=tokenizer,
-        cols_to_keep={"input_ids", "attention_mask", "token_length", "index"},
-        num_proc=1,
+        cols_to_keep={"input_ids", "attention_mask", "token_length", "id"},
     )
 
     # We use CrossEntropyLoss with reduction='none' to get token-level loss

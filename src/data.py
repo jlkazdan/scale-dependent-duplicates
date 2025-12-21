@@ -21,15 +21,22 @@ from typing import Any, Dict, List, Optional, Set, Union
 import yaml
 
 
+DEFAULT_COMPRESSION_TYPES = {
+    "input_ids": Sequence(Value("int32")),
+    "attention_mask": Sequence(Value("bool")),
+    "token_length": Value("int32"),
+    "id": Value("string"),
+}
+
+
 def create_dataset_for_pretraining(
     data_config: Dict[str, Any],
     trainer_config: Dict[str, Any],
     tokenizer: PreTrainedTokenizer,
     cols_to_keep: Optional[Set[str]] = None,
-    num_proc: Optional[int] = 32,
 ) -> Dict[str, Union[Dataset, List[Dataset]]]:
     if cols_to_keep is None:
-        cols_to_keep = {"input_ids", "attention_mask", "token_length"}
+        cols_to_keep = {"input_ids", "attention_mask", "token_length", "id"}
 
     # TODO: Spin this out to a top level function.
     # https://chatgpt.com/share/68f0657f-fab0-800d-8329-a8c8acf18ac8
@@ -62,7 +69,7 @@ def create_dataset_for_pretraining(
     corpus_eval_dataset_cache_dir = os.path.join(hf_cache_root, "corpus_eval_tokenized")
 
     if _is_main():
-        num_proc = min(num_proc, os.cpu_count())
+        num_proc = min(32, os.cpu_count())
 
         num_train_epochs = trainer_config["num_train_epochs"]
         num_training_tokens_per_epoch = trainer_config["num_training_tokens_per_epoch"]
@@ -77,10 +84,6 @@ def create_dataset_for_pretraining(
                 split="train",  # This is the only split that exists.
                 num_proc=num_proc,
             )
-            # Add indices for tracking samples.
-            indices = np.arange(len(corpus_full_dataset), dtype=int)
-            corpus_full_dataset = corpus_full_dataset.add_column("index", indices)
-
             # The full dataset is 220B tokens in 190,168,005 rows.
             # We want 150M tokens for test.
             corpus_split_dataset = corpus_full_dataset.train_test_split(
@@ -90,8 +93,6 @@ def create_dataset_for_pretraining(
             print("Split corpus into train and test")
             corpus_train_dataset = corpus_split_dataset["train"]
             corpus_eval_dataset = corpus_split_dataset["test"]
-            # Note: I thought this should be 220e9 tokens across 190e6 documents, for an average around 1156.
-            # But when I numerically calculated the average tokens per document, it was around 794.
             avg_tokens_per_doc = 794
         else:
             raise ValueError
@@ -131,6 +132,7 @@ def create_dataset_for_pretraining(
             range(idx_to_keep + 1)
         )
 
+        # Cut the Arrow buffers in half by casting dtypes before saving (no semantic change).
         # Remove unnecessary columns to reduce size, then save to disk.
         cols_to_drop = [
             c for c in corpus_train_dataset_subset.column_names if c not in cols_to_keep
@@ -138,17 +140,14 @@ def create_dataset_for_pretraining(
         corpus_train_dataset_subset = corpus_train_dataset_subset.remove_columns(
             cols_to_drop
         )
-
-        # Cut the Arrow buffers in half by casting dtypes before saving (no semantic change).
-        COMPACT = Features(
-            {
-                "input_ids": Sequence(Value("int32")),
-                "attention_mask": Sequence(Value("bool")),
-                "token_length": Value("int32"),
-            }
-        )
         corpus_train_dataset_subset = corpus_train_dataset_subset.cast(
-            COMPACT,
+            Features(
+                {
+                    k: v
+                    for k, v in DEFAULT_COMPRESSION_TYPES.items()
+                    if k in cols_to_keep
+                }
+            ),
             num_proc=num_proc,
         )
         corpus_train_dataset_subset.save_to_disk(
@@ -164,9 +163,14 @@ def create_dataset_for_pretraining(
             c for c in corpus_eval_dataset.column_names if c not in cols_to_keep
         ]
         corpus_eval_dataset = corpus_eval_dataset.remove_columns(cols_to_drop_eval)
-
         corpus_eval_dataset = corpus_eval_dataset.cast(
-            COMPACT,
+            Features(
+                {
+                    k: v
+                    for k, v in DEFAULT_COMPRESSION_TYPES.items()
+                    if k in cols_to_keep
+                }
+            ),
             num_proc=num_proc,
         )
         corpus_eval_dataset.save_to_disk(
