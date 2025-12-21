@@ -71,6 +71,8 @@ def eval_language_model():
 
 
 def score_lm_nll_on_datasets(wandb_config: Dict[str, Any]):
+    torch.backends.cuda.matmul.allow_tf32 = True
+
     # Load model and its tokenizer.
     model = src.models.create_causalm_for_pretraining(
         model_config_dict=wandb_config["model_config"],
