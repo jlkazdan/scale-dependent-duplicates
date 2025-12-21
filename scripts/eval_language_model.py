@@ -115,18 +115,9 @@ def score_lm_nll_on_datasets(wandb_config: Dict[str, Any]):
 
         max_length = wandb_config["trainer_config"]["max_length"]
         for batch in tqdm(dataloader):
-            print(1)
-            input_ids = (
-                torch.tensor(batch["input_ids"][:max_length])
-                .to(model.device)
-                .reshape(1, -1)
-            )
-            attention_mask = (
-                torch.tensor(batch["attention_mask"][:max_length])
-                .to(model.device)
-                .reshape(1, -1)
-            )
-            indices = batch["id"]
+            input_ids = batch["input_ids"][:, :max_length].to(model.device)
+            attention_mask = batch["attention_mask"][:, :max_length].to(model.device)
+            uuids = batch["id"]
 
             with torch.no_grad():
                 logits_BLV = model(
@@ -157,21 +148,20 @@ def score_lm_nll_on_datasets(wandb_config: Dict[str, Any]):
                 valid_tokens_per_seq = shift_mask.sum(dim=1)
 
                 # Store results
-                indices_np = indices
                 nll_np = nll_mean_per_seq.float().cpu().numpy()
                 lens_np = valid_tokens_per_seq.float().cpu().numpy()
 
-                for idx, nll, length in zip(indices_np, nll_np, lens_np):
+                for uuid, nll, length in zip(uuids, nll_np, lens_np):
                     results_to_log = {
                         "split": split,
                         "nll_sum": nll,
                         "seq_token_length": length,
                         "avg_nll": nll,
+                        "id": uuid,
                     }
                     wandb.log(results_to_log)
-
-                # Be nicer to W&B, even if that takes more time per run.
-                time.sleep(1.0 / 30.0)
+                    # Be nicer to W&B, even if that takes more time per run.
+                    time.sleep(1.0 / 30.0)
 
 
 if __name__ == "__main__":

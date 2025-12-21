@@ -16,6 +16,7 @@ All at 2k max context length.
 | **344M**   |       48        |     OOM      | ✅ Tested  |
 | **344M**   |       46        |    130 GB    | ⏳ Pending |
 | **499M**   |       40        |     OOM      | ✅ Tested  |
+| **499M**   |       38        |     OOM      | ⏳ Pending |
 | **499M**   |       38        |    143 GB    | ⏳ Pending |
 | **660M**   |       64        |     TBD      | ⏳ Pending |
 | **806M**   |       64        |     TBD      | ⏳ Pending |
