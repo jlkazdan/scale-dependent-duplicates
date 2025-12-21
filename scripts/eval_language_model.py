@@ -104,12 +104,9 @@ def score_lm_nll_on_datasets(wandb_config: Dict[str, Any]):
 
     print("Starting Evaluation Loop...")
     model.eval()
-
-    torch.cuda.memory._record_memory_history()
-
-    file_prefix = "tmp.debug"
-
     for split, dataset in datasets_dict.items():
+        num_seen_tokens = 0
+
         dataloader = DataLoader(
             dataset,
             batch_size=wandb_config["trainer_config"]["batch_size"],
@@ -138,11 +135,7 @@ def score_lm_nll_on_datasets(wandb_config: Dict[str, Any]):
                 shift_mask = attention_mask[..., 1:]
 
                 # Calculate Loss (NLL) per token
-                # Flatten to [B*Seq, Vocab] for CrossEntropy, then reshape back or use transpose
-                # shape: [B, Seq-1, Vocab] -> [B, Vocab, Seq-1] for CE input
-                B, L, V = shift_logits_BLV.shape
                 shift_logits_BVL = shift_logits_BLV.swapaxes(1, 2)
-                # flat_labels_BL_V = shift_labels_BL.view(-1)
                 loss_BL = loss_fct(shift_logits_BVL, shift_labels_BL)
 
                 # Mask out padding tokens
@@ -161,7 +154,6 @@ def score_lm_nll_on_datasets(wandb_config: Dict[str, Any]):
                 for uuid, nll, length in zip(uuids, nll_np_B, lens_np_B):
                     results_to_log = {
                         "split": split,
-                        "nll_sum": nll,
                         "seq_token_length": length,
                         "avg_nll": nll,
                         "id": uuid,
@@ -170,12 +162,18 @@ def score_lm_nll_on_datasets(wandb_config: Dict[str, Any]):
                     # Be nicer to W&B, even if that takes more time per run.
                     time.sleep(1.0 / 60.0)
 
-                # torch.cuda.memory._dump_snapshot("my_snapshot.pickle")
-                #
-                # # Stop recording by explicitly setting enabled to False
-                # torch.cuda.memory.record_memory_history(enabled=False)
-                #
-                # exit(0)
+                num_seen_tokens += valid_tokens_B.sum()
+
+                # By default, the "test" split has ~150M tokens.
+                # We only want target_num_training_tokens_total.
+                if split == "eval":
+                    if (
+                        num_seen_tokens
+                        > wandb_config["trainer_config"][
+                            "target_num_training_tokens_total"
+                        ]
+                    ):
+                        break
 
 
 if __name__ == "__main__":
