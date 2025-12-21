@@ -71,8 +71,6 @@ def eval_language_model():
 
 
 def score_lm_nll_on_datasets(wandb_config: Dict[str, Any]):
-    torch.backends.cuda.matmul.allow_tf32 = True
-
     # Load model and its tokenizer.
     model = src.models.create_causalm_for_pretraining(
         model_config_dict=wandb_config["model_config"],
@@ -107,6 +105,10 @@ def score_lm_nll_on_datasets(wandb_config: Dict[str, Any]):
     print("Starting Evaluation Loop...")
     model.eval()
 
+    torch.cuda.memory._record_memory_history()
+
+    file_prefix = "tmp.debug"
+
     for split, dataset in datasets_dict.items():
         dataloader = DataLoader(
             dataset,
@@ -124,40 +126,39 @@ def score_lm_nll_on_datasets(wandb_config: Dict[str, Any]):
             uuids = batch["id"]
 
             with torch.no_grad():
-                with torch.amp.autocast(device_type="cuda", dtype=torch.bfloat16):
-                    logits_BLV = model(
-                        input_ids=input_ids, attention_mask=attention_mask
-                    ).logits
+                logits_BLV = model(
+                    input_ids=input_ids, attention_mask=attention_mask
+                ).logits
 
                 # Shift logits_BLV and labels for causal LM loss
                 # Logits: [B, Seq, Vocab] -> predict next token
                 # Shift: logits_BLV[..., :-1, :] predicts input_ids[..., 1:]
-                shift_logits_BLV = logits_BLV[..., :-1, :].contiguous()
-                shift_labels_BLV = input_ids[..., 1:].contiguous()
-                shift_mask = attention_mask[..., 1:].contiguous()
+                shift_logits_BLV = logits_BLV[..., :-1, :]
+                shift_labels_BL = input_ids[..., 1:]
+                shift_mask = attention_mask[..., 1:]
 
                 # Calculate Loss (NLL) per token
                 # Flatten to [B*Seq, Vocab] for CrossEntropy, then reshape back or use transpose
                 # shape: [B, Seq-1, Vocab] -> [B, Vocab, Seq-1] for CE input
                 B, L, V = shift_logits_BLV.shape
-                flat_logits = shift_logits_BLV.view(-1, V)
-                flat_labels = shift_labels_BLV.view(-1)
-                loss_per_token = loss_fct(flat_logits.float(), flat_labels).view(B, L)
+                shift_logits_BVL = shift_logits_BLV.swapaxes(1, 2)
+                # flat_labels_BL_V = shift_labels_BL.view(-1)
+                loss_BL = loss_fct(shift_logits_BVL, shift_labels_BL)
 
                 # Mask out padding tokens
-                loss_per_token = loss_per_token * shift_mask
+                loss_BL = loss_BL * shift_mask
 
                 # Sum NLL per sequence
-                nll_mean_per_seq = loss_per_token.mean(dim=1)
+                nll_mean_B = loss_BL.mean(dim=1)
 
                 # Count valid tokens per sequence (for averaging later if needed)
-                valid_tokens_per_seq = shift_mask.sum(dim=1)
+                valid_tokens_B = shift_mask.sum(dim=1)
 
                 # Store results
-                nll_np = nll_mean_per_seq.float().cpu().numpy()
-                lens_np = valid_tokens_per_seq.float().cpu().numpy()
+                nll_np_B = nll_mean_B.float().cpu().numpy()
+                lens_np_B = valid_tokens_B.float().cpu().numpy()
 
-                for uuid, nll, length in zip(uuids, nll_np, lens_np):
+                for uuid, nll, length in zip(uuids, nll_np_B, lens_np_B):
                     results_to_log = {
                         "split": split,
                         "nll_sum": nll,
@@ -167,7 +168,14 @@ def score_lm_nll_on_datasets(wandb_config: Dict[str, Any]):
                     }
                     wandb.log(results_to_log)
                     # Be nicer to W&B, even if that takes more time per run.
-                    time.sleep(1.0 / 30.0)
+                    time.sleep(1.0 / 60.0)
+
+                # torch.cuda.memory._dump_snapshot("my_snapshot.pickle")
+                #
+                # # Stop recording by explicitly setting enabled to False
+                # torch.cuda.memory.record_memory_history(enabled=False)
+                #
+                # exit(0)
 
 
 if __name__ == "__main__":

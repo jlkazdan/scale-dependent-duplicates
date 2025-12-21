@@ -48,8 +48,8 @@ for model_count, tprs in tpr_by_models.items():
         )
 
 df = pd.DataFrame(data)
-df["True Negative Rate"] = 1.0 - df["TPR"]
-df["Neg. Log True Positive Rate"] = -np.log(df["TPR"])
+df["TNR"] = 1.0 - df["TPR"]
+df["Neg. Log TPR"] = -np.log(df["TPR"])
 sorted_unique_num_reference_models = sorted(df["Num. Reference Models"])
 
 
@@ -67,6 +67,7 @@ g.set(
     xscale="log",
     yscale="log",
 )
+sns.move_legend(g, "upper left", bbox_to_anchor=(1, 1), title="Num. Models")
 src.plot.save_plot_with_multiple_extensions(
     plot_dir=results_dir,
     plot_filename="y=tpr_x=fpr_hue=num-ref-models",
@@ -74,45 +75,44 @@ src.plot.save_plot_with_multiple_extensions(
 # plt.show()
 
 
-df_fpr_1eminus6 = df[df["FPR"] == 1e-6]
+# df_fpr_1eminus6 = df[df["FPR"] == 1e-6]
 
 plt.close()
-g = sns.scatterplot(
-    data=df_fpr_1eminus6,
+g = sns.lineplot(
+    data=df,
     x="Num. Reference Models",
     y="TPR",
-    hue="Num. Reference Models",
-    hue_order=sorted_unique_num_reference_models,
+    hue="FPR",
     hue_norm=LogNorm(),
-    palette="viridis",
-    legend=False,
+    palette="magma",
+    marker="o",
 )
 g.set(
     xscale="log",
     yscale="log",
-    ylabel="TPR @ 1e-6 FPR"
 )
+sns.move_legend(g, "upper left", bbox_to_anchor=(1, 1))
 src.plot.save_plot_with_multiple_extensions(
     plot_dir=results_dir,
-    plot_filename="y=tpr_x=num-ref-models_hue=num-ref-models",
+    plot_filename="y=tpr_x=num-ref-models_hue=fpr",
 )
 # plt.show()
 
 plt.close()
-g = sns.scatterplot(
-    data=df_fpr_1eminus6,
+g = sns.lineplot(
+    data=df,
     x="Num. Reference Models",
-    y="Neg. Log True Positive Rate",
-    hue="Num. Reference Models",
-    hue_order=sorted_unique_num_reference_models,
+    y="Neg. Log TPR",
+    hue="FPR",
     hue_norm=LogNorm(),
-    palette="viridis",
-    legend=False,
+    palette="magma",
+    marker="o",
 )
-g.set(xscale="log", yscale="log", ylabel=r"$-\log(\text{TPR})$ @ 1e-6 FPR")
+g.set(xscale="log", yscale="log", ylabel=r"$-\log(\text{TPR})$")
+sns.move_legend(g, "upper left", bbox_to_anchor=(1, 1))
 src.plot.save_plot_with_multiple_extensions(
     plot_dir=results_dir,
-    plot_filename="y=neg-log-tpr_x=num-ref-models_hue=num-ref-models",
+    plot_filename="y=neg-log-tpr_x=num-ref-models_hue=fpr",
 )
 plt.show()
 
