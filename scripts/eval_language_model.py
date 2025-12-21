@@ -75,6 +75,7 @@ def score_lm_nll_on_datasets(wandb_config: Dict[str, Any]):
     model = src.models.create_causalm_for_pretraining(
         model_config_dict=wandb_config["model_config"],
     )
+    model.to("cuda")
     tokenizer = AutoTokenizer.from_pretrained(
         wandb_config["model_config"]["model_name"],
         use_fast=True,
@@ -95,7 +96,7 @@ def score_lm_nll_on_datasets(wandb_config: Dict[str, Any]):
     data_collator = src.data.StringHandlingDataCollator(
         DataCollatorWithPadding(
             tokenizer=tokenizer,
-            padding="max_length",
+            padding=True,
             max_length=wandb_config["trainer_config"]["max_length"] + 1,
             return_tensors="pt",
         )
@@ -103,6 +104,7 @@ def score_lm_nll_on_datasets(wandb_config: Dict[str, Any]):
 
     print("Starting Evaluation Loop...")
     model.eval()
+
     for split, dataset in datasets_dict.items():
         dataloader = DataLoader(
             dataset,
@@ -120,9 +122,10 @@ def score_lm_nll_on_datasets(wandb_config: Dict[str, Any]):
             uuids = batch["id"]
 
             with torch.no_grad():
-                logits_BLV = model(
-                    input_ids=input_ids, attention_mask=attention_mask
-                ).logits
+                with torch.amp.autocast(device_type="cuda", dtype=torch.bfloat16):
+                    logits_BLV = model(
+                        input_ids=input_ids, attention_mask=attention_mask
+                    ).logits
 
                 # Shift logits_BLV and labels for causal LM loss
                 # Logits: [B, Seq, Vocab] -> predict next token
@@ -134,9 +137,10 @@ def score_lm_nll_on_datasets(wandb_config: Dict[str, Any]):
                 # Calculate Loss (NLL) per token
                 # Flatten to [B*Seq, Vocab] for CrossEntropy, then reshape back or use transpose
                 # shape: [B, Seq-1, Vocab] -> [B, Vocab, Seq-1] for CE input
-                loss_per_token = loss_fct(
-                    shift_logits_BLV.transpose(1, 2), shift_labels_BLV
-                )
+                B, L, V = shift_logits_BLV.shape
+                flat_logits = shift_logits_BLV.view(-1, V)
+                flat_labels = shift_labels_BLV.view(-1)
+                loss_per_token = loss_fct(flat_logits.float(), flat_labels).view(B, L)
 
                 # Mask out padding tokens
                 loss_per_token = loss_per_token * shift_mask

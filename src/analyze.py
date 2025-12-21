@@ -20,7 +20,6 @@ import src.neural_scaling_laws
 def add_pretraining_quantities_to_pretrain_run_configs_df(
     pretrain_run_configs_df: pd.DataFrame,
 ) -> pd.DataFrame:
-    # Extract basic quantities.
     pretrain_run_configs_df["Model"] = pretrain_run_configs_df["model_config"].apply(
         lambda model_config: ast.literal_eval(model_config)["model_name"]
     )
@@ -30,11 +29,6 @@ def add_pretraining_quantities_to_pretrain_run_configs_df(
     pretrain_run_configs_df["Parameters"] = pretrain_run_configs_df[
         "Num. Parameters"
     ].apply(lambda n: f"{n / 1_000_000:.0f}M")
-    pretrain_run_configs_df["Benchmark Subset Fraction"] = pretrain_run_configs_df[
-        "data_config"
-    ].apply(
-        lambda data_config: ast.literal_eval(data_config)["benchmark_subset_fraction"]
-    )
     pretrain_run_configs_df["Overtrain Multiplier"] = pretrain_run_configs_df[
         "trainer_config"
     ].apply(
@@ -45,25 +39,28 @@ def add_pretraining_quantities_to_pretrain_run_configs_df(
         * pretrain_run_configs_df["Overtrain Multiplier"]
         * pretrain_run_configs_df["Num. Parameters"]
     )
-    pretrain_run_configs_df["FLOP (6ND)"] = (
+    pretrain_run_configs_df["Num. FLOP (6ND)"] = (
         6
         * pretrain_run_configs_df["Num. Parameters"]
         * pretrain_run_configs_df["Num. Tokens"]
     )
-    pretrain_run_configs_df["Num. Replicas Per Epoch"] = pretrain_run_configs_df[
-        "data_config"
-    ].apply(
-        lambda data_config: ast.literal_eval(data_config)[
-            "num_benchmark_replicas_per_epoch"
-        ]
-    )
     pretrain_run_configs_df["Num. Epochs"] = pretrain_run_configs_df[
         "trainer_config"
     ].apply(lambda trainer_config: ast.literal_eval(trainer_config)["num_train_epochs"])
-    pretrain_run_configs_df["Num. MATH Test Set Replicas"] = (
-        pretrain_run_configs_df["Num. Replicas Per Epoch"]
-        * pretrain_run_configs_df["Num. Epochs"]
+
+    pretrain_run_configs_df["Corpus"] = pretrain_run_configs_df["data_config"].apply(
+        lambda data_config: ast.literal_eval(data_config)["corpus"]
     )
+    pretrain_run_configs_df["Direction"] = pretrain_run_configs_df["data_config"].apply(
+        lambda data_config: ast.literal_eval(data_config)["direction"]
+    )
+    pretrain_run_configs_df["Direction"] = pretrain_run_configs_df["data_config"].apply(
+        lambda data_config: ast.literal_eval(data_config)["direction"]
+    )
+    pretrain_run_configs_df["Shuffle Seed"] = pretrain_run_configs_df[
+        "data_config"
+    ].apply(lambda data_config: ast.literal_eval(data_config)["shuffle_seed"])
+
     return pretrain_run_configs_df
 
 
