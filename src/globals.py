@@ -17,6 +17,7 @@ DEFAULT_EVALUATION_CONFIG = {
         "num_train_epochs": 1,
         "target_num_training_tokens_total": 10_000_000,
     },
+    "seed": 0,
 }
 
 DEFAULT_PRETRAINING_CONFIG = {

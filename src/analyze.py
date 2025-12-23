@@ -70,6 +70,19 @@ def calculate_compute_contamination_exchange_rate(
     return np.power((loss - irreducible_error) / prefactor, -1.0 / exponent)
 
 
+def construct_dataset_name_for_eval_analysis(row: pd.Series):
+    trainer_config = ast.literal_eval(row["trainer_config"])
+    data_config = ast.literal_eval(row["data_config"])
+    num_train_epochs = trainer_config["num_train_epochs"]
+    overtrain_multiplier = 1
+    seed = 0
+    direction = data_config["direction"]
+    shuffle_seed = data_config["shuffle_seed"]
+    train_test_split_seed = data_config["train_test_split_seed"]
+    dataset_name = f"epch_{num_train_epochs}_ot_{overtrain_multiplier}_s_{seed}_dir_{direction}_shfs_{shuffle_seed}_ttss_{train_test_split_seed}"
+    return dataset_name
+
+
 def convert_float_to_latex_scientific_notation(num: float, precision: int = 2) -> str:
     """Converts a float to a LaTeX scientific notation string."""
     # Format the number in scientific notation (e.g., '1.23e+04')
@@ -232,7 +245,9 @@ def download_wandb_project_runs_configs(
 
         try:
             runs_configs_df.to_parquet(
-                runs_configs_df_path.replace(filetype, "parquet"), index=False
+                runs_configs_df_path.replace(filetype, "parquet"),
+                index=False,
+                engine="pyarrow",
             )
         except Exception as e:
             print(f"Error saving to parquet: {str(e)}")
@@ -434,6 +449,11 @@ def download_wandb_project_runs_histories(
         runs_histories_df.sort_values(["run_id"], ascending=True, inplace=True)
         runs_histories_df.reset_index(inplace=True, drop=True)
 
+        runs_histories_df.rename(columns={"id": "seq_id"}, inplace=True)
+        runs_histories_df["run_id+seq_id"] = runs_histories_df.apply(
+            lambda row: f"{row['run_id']}_{row['seq_id']}", axis=1
+        )
+
         # Save all three because otherwise this is a pain in the ass.
         # runs_histories_df.to_csv(
         #     runs_histories_df_path.replace(filetype, "csv"), index=False
@@ -447,7 +467,9 @@ def download_wandb_project_runs_histories(
             pass
         try:
             runs_histories_df.to_parquet(
-                runs_histories_df_path.replace(filetype, "parquet"), index=False
+                runs_histories_df_path.replace(filetype, "parquet"),
+                index=False,
+                engine="pyarrow",
             )
         except pyarrow.lib.ArrowInvalid:
             # pyarrow.lib.ArrowInvalid: ("Could not convert 'NaN' with type str: tried to convert to double", 'Conversion failed for column loss/score_model=claude3opus with type object')
@@ -501,7 +523,9 @@ def extract_num_model_parameters(model_name: str) -> int:
     if model_name.startswith("RylanSchaeffer"):
         # "RylanSchaeffer/mem_Qwen3-34M_minerva_math_replicas_0_epch_1_ot_1_pt"
         # will become "Qwen3-34M".
-        base_model_name = model_name.replace("RylanSchaeffer/mem_", "").split("_")[0]
+        base_model_name = model_name.replace(
+            "RylanSchaeffer/scale_mem_Qwen3-", ""
+        ).split("_")[0]
     else:
         match = re.search(r"model_(.*)_dataset", model_name)
         if match:
@@ -523,6 +547,22 @@ def extract_num_train_epochs(model_name: str) -> int:
         raise ValueError
     num_epochs = int(match.group(1))
     return num_epochs
+
+
+def extract_pretraining_dataset_name_for_eval_analysis(model_name: str) -> str:
+    pattern = r"epch_(?P<epoch>\d+)_ot_(?P<overtraining>\d+)_s_(?P<seed>\d+)_dir_(?P<direction>[^_]+)_shfs_(?P<shuffle_seed>\d+)_ttss_(?P<split_seed>\d+)"
+    match = re.search(pattern, model_name)
+    if match:
+        dataset_name = match.group(0)
+    # # if match:
+    # #     config = match.groupdict()
+    # #     # Convert numeric strings to integers where appropriate
+    # #     for key in ["epoch", "overtraining", "seed", "shuffle_seed", "split_seed"]:
+    # #         config[key] = int(config[key])
+    # dataset_name = f"epch_{num_train_epochs}_ot_{overtrain_multiplier}_s_{seed}_dir_{direction}_shfs_{shuffle_seed}_ttss_{train_test_split_seed}"
+    else:
+        raise ValueError(f"Model name '{model_name}' does not match expected pattern.")
+    return dataset_name
 
 
 def fit_neural_scaling_law(

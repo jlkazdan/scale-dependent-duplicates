@@ -1,4 +1,3 @@
-import ast
 from matplotlib.cm import ScalarMappable
 from matplotlib.colors import LogNorm, SymLogNorm
 import matplotlib.pyplot as plt
@@ -6,12 +5,10 @@ import matplotlib.transforms
 import numpy as np
 import os
 import pandas as pd
-import re
 import seaborn as sns
 import wandb
 
 import src.analyze
-import src.globals
 import src.plot
 
 refresh = False

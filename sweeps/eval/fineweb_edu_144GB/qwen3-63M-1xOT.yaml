@@ -43,3 +43,5 @@ parameters:
         values: [ 1 ]
       target_num_training_tokens_total:
         values: [ 10_000_000 ]
+  seed:
+    values: [ 0 ]

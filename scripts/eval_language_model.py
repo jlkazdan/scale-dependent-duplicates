@@ -30,7 +30,7 @@ import torch
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from transformers import AutoTokenizer, DataCollatorWithPadding
+from transformers import AutoTokenizer, DataCollatorWithPadding, set_seed
 from typing import Any, Dict, List
 import wandb
 
@@ -55,6 +55,8 @@ def eval_language_model():
     wandb_config: Dict[str, Any] = dict(wandb.config)
     print("CUDA VISIBLE DEVICES: ", os.environ["CUDA_VISIBLE_DEVICES"])
     pprint.pprint(wandb_config)
+
+    set_seed(seed=wandb_config["seed"], deterministic=True)
 
     # We need to slightly hijack the pretraining logic.
     num_training_tokens_per_epoch = int(
