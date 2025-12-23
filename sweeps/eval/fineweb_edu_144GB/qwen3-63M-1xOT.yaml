@@ -36,7 +36,7 @@ parameters:
   trainer_config:
     parameters:
       batch_size:
-        values: [ 32 ]
+        values: [ 30 ]
       max_length:
         values: [ 2048 ]
       num_train_epochs:

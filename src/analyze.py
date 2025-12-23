@@ -70,6 +70,55 @@ def calculate_compute_contamination_exchange_rate(
     return np.power((loss - irreducible_error) / prefactor, -1.0 / exponent)
 
 
+def create_or_load_strong_membership_inference_attack_data(
+    data_dir: str, refresh: bool = False
+) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    auc_models_parquet_path = os.path.join(data_dir, "auc_models.parquet")
+    tpr_fpr_models_data_path = os.path.join(data_dir, "tpr_fpr_models.parquet")
+
+    if not os.path.exists(tpr_fpr_models_data_path) or refresh:
+        auc_models_data = []
+        tpr_fpr_models_data = []
+        num_reference_models = np.power(2, np.arange(0, 9), dtype=int)
+        for num_models in num_reference_models:
+            with open(os.path.join(data_dir, f"numrefs_{num_models}.txt"), "r") as f:
+                data = f.readlines()
+                fpr = ast.literal_eval(
+                    data[0][5:-1]
+                )  # Strip off leading "fpr: " and trailing "\n".
+                tpr = ast.literal_eval(
+                    data[1][5:-1]
+                )  # Strip off leading "tpr: " and trailing "\n".
+                assert len(tpr) == len(fpr)
+                auc = float(
+                    data[2][5:-1]
+                )  # Strip off leading "auc: " and trailing "\n".
+            auc_models_data.append(
+                pd.Series({"Num. Reference Models": num_models, "AUC": auc})
+            )
+            tpr_fpr_models_data.append(
+                pd.DataFrame(
+                    {
+                        "Num. Reference Models": [num_models] * len(tpr),
+                        "TPR": tpr,
+                        "FPR": fpr,
+                    }
+                )
+            )
+
+        auc_models_df = pd.DataFrame(auc_models_data).reset_index(drop=True)
+        auc_models_df["Neg. Log AUC"] = -np.log(auc_models_df["AUC"])
+        auc_models_df.to_parquet(auc_models_parquet_path, engine="pyarrow")
+        tpr_fpr_models_df = pd.concat(tpr_fpr_models_data).reset_index(drop=True)
+        tpr_fpr_models_df.to_parquet(tpr_fpr_models_data_path, engine="pyarrow")
+
+        del auc_models_df, tpr_fpr_models_df
+
+    auc_models_df = pd.read_parquet(auc_models_parquet_path)
+    tpr_fpr_models_df = pd.read_parquet(tpr_fpr_models_data_path)
+    return auc_models_df, tpr_fpr_models_df
+
+
 def download_wandb_project_runs_configs(
     wandb_project_path: str,
     data_dir: str,
