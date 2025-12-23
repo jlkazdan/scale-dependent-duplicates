@@ -12,7 +12,6 @@ import seaborn as sns
 
 sns.set_style("whitegrid")
 
-
 # Enable LaTeX rendering.
 # https://stackoverflow.com/a/23856968
 # plt.rc('text', usetex=True)
@@ -23,6 +22,8 @@ plt.rcParams["font.serif"] = "Computer Modern"
 plt.rcParams["text.latex.preamble"] = "\n".join([r"\usepackage{amsmath}"])
 # Increase font size.
 plt.rcParams["font.size"] = 23
+plt.rcParams["grid.alpha"] = 0.5
+plt.rcParams["axes.grid.which"] = "both"
 
 
 def format_g_legend_in_scientific_notation(g, num_decimal_digits: int = 1):

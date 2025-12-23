@@ -21,5 +21,7 @@ All at 2k max context length.
 | **660M**   |       64        |     TBD      | ⏳ Pending |
 | **806M**   |       64        |     TBD      | ⏳ Pending |
 
+Note: For 344M, at 44 per device batch size, `gradient_accumulation_steps_unrounded` is 7.11, 
+which is then rounded up to 8. We may want to rerun.
 
 ## Evaluating

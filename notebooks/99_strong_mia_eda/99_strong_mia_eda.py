@@ -94,7 +94,7 @@ sorted_unique_fprs_to_keep = np.sort(fprs_with_all_num_models["FPR"].unique())
 
 indices_to_keep = np.array(
     [
-        # 1,  # 9.19e-7
+        1,  # 9.19e-7
         2,  # 1.83e-6
         # 4,  # 3.67e-6
         11,  # 1.011e-5

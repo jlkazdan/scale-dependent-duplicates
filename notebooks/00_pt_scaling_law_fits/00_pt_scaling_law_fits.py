@@ -29,7 +29,7 @@ sweep_ids = [
     "go2fzcue",  # Qwen 3   93M 1xOT
     "stzt1epz",  # Qwen 3  153M 1xOT
     "vw7a3nt4",  # Qwen 3  344M 1xOT
-    # "",  # Qwen 3  M 1xOT
+    "wr21ll5w",  # Qwen 3  499M 1xOT
     # "",  # Qwen 3  M 1xOT
     # "",  # Qwen 3  M 1xOT
 ]
@@ -50,6 +50,7 @@ pretrain_run_configs_df = (
 )
 
 plt.close()
+plt.figure(figsize=(10, 6))
 g = sns.lineplot(
     data=pretrain_run_configs_df,
     x="Num. FLOP (6ND)",
@@ -58,9 +59,14 @@ g = sns.lineplot(
     hue="Direction",
     style="Shuffle Seed",
 )
-g.set(xscale="log", yscale="log", ylabel="Cross Entropy (Test)")
+g.set(
+    xlabel="Pretraining FLOP (6ND)",
+    xscale="log",
+    yscale="log",
+    ylabel="Cross Entropy (Test)",
+)
 src.plot.save_plot_with_multiple_extensions(
-    plot_dir=results_dir, plot_filename="y=eval-loss_x=flop"
+    plot_dir=results_dir, plot_filename="y=eval-loss_x=flop_hue=dir_style=shuffle-seed"
 )
 # plt.show()
 
@@ -87,10 +93,12 @@ g = sns.scatterplot(
     y="eval_after/eval_loss",
     palette="viridis",
     marker="o",
+    s=100,
     # legend="full",
     legend=False,
 )
 g.set(
+    xlabel="Pretraining FLOP (6ND)",
     xscale="log",
     yscale="log",
     ylabel="Cross Entropy (Test)",
@@ -112,24 +120,22 @@ for row_idx, row in power_law_fits_df.iterrows():
         linestyle="--",
         # legend=False,
     )
-# Add the irreducible error
-sns.lineplot(
-    x=x_vals,
-    y=np.full_like(
-        x_vals,
-        fill_value=power_law_fits_df["fit_param_E_0"].values[0],
-    ),
-    ax=g,
-    linestyle="-",
-    legend=False,
-    color="black",
-)
-plt.text(1e18, 1.8, "Uncontaminated Irreducible Error", size="x-small")
-sns.move_legend(g, "upper left", bbox_to_anchor=(1, 1))
+    # Add the irreducible error
+    sns.lineplot(
+        x=x_vals,
+        y=np.full_like(
+            x_vals,
+            fill_value=row["fit_param_E_0"],
+        ),
+        ax=g,
+        linestyle="--",
+        legend=False,
+        color="black",
+    )
+plt.text(1e18, 2.4, "Estimated Irreducible Errors", size="x-small")
 src.plot.save_plot_with_multiple_extensions(
     plot_dir=results_dir,
-    plot_filename="y=loss_x=flop_hue=num_replicas",
+    plot_filename="y=eval-loss_x=flop_overlay=fit-scaling-laws",
 )
-plt.show()
-
+# plt.show()
 print("Finished notebook/00_pt_scaling_law_fits.py!")
