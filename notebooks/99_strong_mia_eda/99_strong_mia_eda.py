@@ -153,7 +153,7 @@ g = sns.lineplot(
     palette="magma",
     marker="o",
     # legend=False,
-    markeredgewidth=0,
+    # markeredgewidth=0,
 )
 g.set(
     xscale="log",
@@ -181,11 +181,53 @@ power_law_fits_df = pd.DataFrame(
 )
 
 plt.close()
+plt.figure(figsize=(8, 6))
+g = sns.scatterplot(
+    data=tpr_fpr_models_subset_df,
+    x="Num. Reference Models",
+    y="Neg. Log TPR",
+    hue="FPR",
+    hue_norm=LogNorm(vmin=1e-6, vmax=1.0),
+    palette="magma",
+)
+g.set(
+    xscale="log",
+    yscale="log",
+    ylabel=r"$-\log(\text{True Positive Rate})$",
+)
+x_vals = np.geomspace(
+    start=tpr_fpr_models_subset_df["Num. Reference Models"].min() / 1.1,
+    stop=tpr_fpr_models_subset_df["Num. Reference Models"].max() * 1.1,
+    num=100,
+)
+for row_idx, row in power_law_fits_df.iterrows():
+    yhat_vals = row["fit_param_E_0"] + row["fit_param_C_0"] * np.power(
+        x_vals, -row["fit_param_alpha"]
+    )
+    sns.lineplot(
+        x=x_vals,
+        y=yhat_vals,
+        ax=g,
+        hue=row["FPR"],
+        hue_norm=LogNorm(vmin=1e-6, vmax=1.0),
+        palette="magma",
+        linestyle="--",
+        legend=False,
+    )
+sns.move_legend(g, "upper left", bbox_to_anchor=(1, 1))
+src.plot.format_g_legend_in_scientific_notation(g, num_decimal_digits=0)
+src.plot.save_plot_with_multiple_extensions(
+    plot_dir=results_dir,
+    plot_filename="y=neg-log-tpr_x=num-ref-models_hue=fpr_overlay=fit-scaling-laws",
+)
+plt.show()
+
+plt.close()
 fig, axes = plt.subplots(nrows=1, ncols=4, figsize=(24, 6), sharex=True)
 sns.lineplot(
     data=power_law_fits_df,
     x="FPR",
-    y="fit_param_E_0",
+    y="fit_loss",
     hue="FPR",
     hue_norm=LogNorm(vmin=1e-6, vmax=1.0),
     palette="magma",
@@ -194,7 +236,12 @@ sns.lineplot(
     legend=False,
     markersize=10,
 )
-axes[0].set(xscale="log", yscale="log", ylabel="Fit Loss", xlabel="False Positive Rate")
+axes[0].set(
+    xscale="log",
+    yscale="log",
+    ylabel="Fitting Error",
+    xlabel="False Positive Rate",
+)
 sns.lineplot(
     data=power_law_fits_df,
     x="FPR",
