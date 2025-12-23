@@ -140,7 +140,7 @@ src.plot.save_plot_with_multiple_extensions(
     plot_dir=results_dir,
     plot_filename="y=tpr_x=num-ref-models_hue=fpr",
 )
-plt.show()
+# plt.show()
 
 plt.close()
 plt.figure(figsize=(8, 6))
@@ -165,6 +165,80 @@ src.plot.format_g_legend_in_scientific_notation(g, num_decimal_digits=0)
 src.plot.save_plot_with_multiple_extensions(
     plot_dir=results_dir,
     plot_filename="y=neg-log-tpr_x=num-ref-models_hue=fpr",
+)
+# plt.show()
+
+power_law_fits_df = pd.DataFrame(
+    [
+        src.analyze.fit_neural_scaling_law(
+            subset_df,
+            x_col="Num. Reference Models",
+            y_col="Neg. Log TPR",
+            additional_columns_to_add=["FPR"],
+        )
+        for (fpr,), subset_df in tpr_fpr_models_subset_df.groupby(["FPR"])
+    ]
+)
+
+plt.close()
+fig, axes = plt.subplots(nrows=1, ncols=4, figsize=(24, 6), sharex=True)
+sns.lineplot(
+    data=power_law_fits_df,
+    x="FPR",
+    y="fit_param_E_0",
+    hue="FPR",
+    hue_norm=LogNorm(vmin=1e-6, vmax=1.0),
+    palette="magma",
+    marker="o",
+    ax=axes[0],
+    legend=False,
+    markersize=10,
+)
+axes[0].set(xscale="log", yscale="log", ylabel="Fit Loss", xlabel="False Positive Rate")
+sns.lineplot(
+    data=power_law_fits_df,
+    x="FPR",
+    y="fit_param_E_0",
+    hue="FPR",
+    hue_norm=LogNorm(vmin=1e-6, vmax=1.0),
+    palette="magma",
+    marker="o",
+    ax=axes[1],
+    legend=False,
+    markersize=10,
+)
+axes[1].set(xscale="log", yscale="log", ylabel=r"$E$", xlabel="False Positive Rate")
+sns.lineplot(
+    data=power_law_fits_df,
+    x="FPR",
+    y="fit_param_C_0",
+    hue="FPR",
+    hue_norm=LogNorm(vmin=1e-6, vmax=1.0),
+    palette="magma",
+    marker="o",
+    ax=axes[2],
+    legend=False,
+    markersize=10,
+)
+axes[2].set(xscale="log", yscale="log", ylabel=r"$A$", xlabel="False Positive Rate")
+sns.lineplot(
+    data=power_law_fits_df,
+    x="FPR",
+    y="fit_param_alpha",
+    hue="FPR",
+    hue_norm=LogNorm(vmin=1e-6, vmax=1.0),
+    palette="magma",
+    marker="o",
+    ax=axes[3],
+    legend=False,
+    markersize=10,
+)
+axes[3].set(
+    xscale="log", yscale="log", ylabel=r"$\alpha$", xlabel="False Positive Rate"
+)
+src.plot.save_plot_with_multiple_extensions(
+    plot_dir=results_dir,
+    plot_filename="y=scaling-law-quantities_x=fpr_hue=fpr_col=quantity",
 )
 plt.show()
 
