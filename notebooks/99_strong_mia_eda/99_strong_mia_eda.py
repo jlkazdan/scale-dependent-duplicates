@@ -92,7 +92,7 @@ sns.lineplot(
         E_0_of_k=auc_power_law_fits_dict["fit_param_E_0"],
         C_0_of_k=auc_power_law_fits_dict["fit_param_C_0"],
         alpha_of_k=-auc_power_law_fits_dict["fit_param_alpha"],
-        precision=1,
+        precision=2,
     ),
 )
 ax.legend(loc="upper right", handlelength=0, handletextpad=0)
