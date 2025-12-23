@@ -70,6 +70,47 @@ def calculate_compute_contamination_exchange_rate(
     return np.power((loss - irreducible_error) / prefactor, -1.0 / exponent)
 
 
+def convert_float_to_latex_scientific_notation(num: float, precision: int = 2) -> str:
+    """Converts a float to a LaTeX scientific notation string."""
+    # Format the number in scientific notation (e.g., '1.23e+04')
+    sci_notation_str = f"{num:.{precision}e}"
+
+    # Split into mantissa and exponent
+    mantissa, exponent = sci_notation_str.split("e")
+
+    # Convert exponent to an integer
+    exponent_val = int(exponent)
+
+    # Return just the mantissa if the exponent is 0
+    if exponent_val == 0:
+        return mantissa
+
+    # Construct the LaTeX string
+    return rf"{mantissa}e{{{exponent_val}}}"
+
+
+def construct_latex_power_law_equation_from_num_reference_models(
+    E_0_of_k: float,
+    C_0_of_k: float,
+    alpha_of_k: float,
+    precision: int = 2,
+):
+    latex_E_0_of_k = convert_float_to_latex_scientific_notation(
+        E_0_of_k, precision=precision
+    )
+    latex_C_0_of_k = convert_float_to_latex_scientific_notation(
+        C_0_of_k, precision=precision
+    )
+    latex_alpha_of_k = convert_float_to_latex_scientific_notation(
+        alpha_of_k, precision=precision
+    )
+
+    latex_equation = (
+        rf"${latex_E_0_of_k} + {latex_C_0_of_k} \cdot N^{{{latex_alpha_of_k}}}$"
+    )
+    return latex_equation
+
+
 def create_or_load_strong_membership_inference_attack_data(
     data_dir: str, refresh: bool = False
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:

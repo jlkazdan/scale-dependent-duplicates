@@ -57,6 +57,79 @@ src.plot.save_plot_with_multiple_extensions(
 # plt.show()
 
 
+auc_power_law_fits_dict = src.analyze.fit_neural_scaling_law(
+    auc_models_df[auc_models_df["Num. Reference Models"] >= 8],
+    x_col="Num. Reference Models",
+    y_col="Neg. Log AUC",
+)
+plt.close()
+plt.figure(figsize=(8, 6))
+g = sns.scatterplot(
+    data=auc_models_df[auc_models_df["Num. Reference Models"] >= 8],
+    x="Num. Reference Models",
+    y="Neg. Log AUC",
+    hue="Num. Reference Models",
+    hue_norm=LogNorm(),
+    palette="viridis",
+    legend=False,
+)
+x_vals = np.geomspace(
+    start=8.0 / 1.1,  # Cut out 1, 2, 4.
+    stop=auc_models_df["Num. Reference Models"].max() * 1.1,
+    num=100,
+)
+yhat_vals = auc_power_law_fits_dict["fit_param_E_0"] + auc_power_law_fits_dict[
+    "fit_param_C_0"
+] * np.power(x_vals, -auc_power_law_fits_dict["fit_param_alpha"])
+ax = g.axes
+sns.lineplot(
+    x=x_vals,
+    y=yhat_vals,
+    color="black",
+    linestyle="--",
+    ax=ax,
+    label=src.analyze.construct_latex_power_law_equation_from_num_reference_models(
+        E_0_of_k=auc_power_law_fits_dict["fit_param_E_0"],
+        C_0_of_k=auc_power_law_fits_dict["fit_param_C_0"],
+        alpha_of_k=-auc_power_law_fits_dict["fit_param_alpha"],
+        precision=1,
+    ),
+)
+ax.legend(loc="upper right", handlelength=0, handletextpad=0)
+g.set(
+    xscale="log",
+    yscale="log",
+    ylabel=r"$-\log(\text{AUC})$",
+)
+src.plot.save_plot_with_multiple_extensions(
+    plot_dir=results_dir,
+    plot_filename="y=neg-log-auc_x=num-ref-models_hue=num-ref-models_overlay=fit-scaling-laws",
+)
+# plt.show()
+
+
+plt.close()
+plt.figure(figsize=(8, 6))
+g = sns.scatterplot(
+    data=auc_models_df,
+    x="Num. Reference Models",
+    y="Neg. Log AUC",
+    hue="Num. Reference Models",
+    hue_norm=LogNorm(),
+    palette="viridis",
+)
+g.set(
+    xscale="log",
+    yscale="log",
+    ylabel=r"$-\log(\text{AUC})$",
+)
+sns.move_legend(g, "upper right", title="Num. Models")
+src.plot.save_plot_with_multiple_extensions(
+    plot_dir=results_dir,
+    plot_filename="y=neg-log-auc_x=num-ref-models_hue=num-ref-models",
+)
+# plt.show()
+
 plt.close()
 plt.figure(figsize=(8, 6))
 g = sns.lineplot(
