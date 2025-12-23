@@ -96,20 +96,24 @@ def create_or_load_strong_membership_inference_attack_data(
             auc_models_data.append(
                 pd.Series({"Num. Reference Models": num_models, "AUC": auc})
             )
+            tpr_fpt_model_df = pd.DataFrame(
+                {
+                    "Num. Reference Models": [num_models] * len(tpr),
+                    "TPR": tpr,
+                    "FPR": fpr,
+                }
+            )
+            # There are duplicate FPRs. I assume that this is due to a loss of numerical precision.
+            # Let's take the first.
             tpr_fpr_models_data.append(
-                pd.DataFrame(
-                    {
-                        "Num. Reference Models": [num_models] * len(tpr),
-                        "TPR": tpr,
-                        "FPR": fpr,
-                    }
-                )
+                tpr_fpt_model_df.groupby("FPR").mean().reset_index()
             )
 
         auc_models_df = pd.DataFrame(auc_models_data).reset_index(drop=True)
         auc_models_df["Neg. Log AUC"] = -np.log(auc_models_df["AUC"])
         auc_models_df.to_parquet(auc_models_parquet_path, engine="pyarrow")
         tpr_fpr_models_df = pd.concat(tpr_fpr_models_data).reset_index(drop=True)
+        tpr_fpr_models_df["Neg. Log TPR"] = -np.log(tpr_fpr_models_df["TPR"])
         tpr_fpr_models_df.to_parquet(tpr_fpr_models_data_path, engine="pyarrow")
 
         del auc_models_df, tpr_fpr_models_df
