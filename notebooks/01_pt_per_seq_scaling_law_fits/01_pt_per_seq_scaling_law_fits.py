@@ -8,7 +8,6 @@ import os
 import pandas as pd
 import seaborn as sns
 import wandb
-from matplotlib.pyplot import xscale
 
 import src.analyze
 import src.plot
@@ -33,81 +32,40 @@ sweep_ids = [
     # "",  # Qwen 3  M 1xOT
 ]
 
-per_seq_nll_runs_configs_df: pd.DataFrame = (
-    src.analyze.download_wandb_project_runs_configs(
-        wandb_project_path="scaling-memorization-eval",
-        data_dir=data_dir,
-        sweep_ids=sweep_ids,
-        refresh=refresh,
-        wandb_username=wandb.api.default_entity,
-        finished_only=True,
-    )
-)
-per_seq_nll_runs_configs_df["Model Name"] = per_seq_nll_runs_configs_df[
-    "model_config"
-].apply(lambda model_config: ast.literal_eval(model_config)["model_name"])
-per_seq_nll_runs_configs_df["Pretraining Dataset"] = per_seq_nll_runs_configs_df[
-    "Model Name"
-].apply(src.analyze.extract_pretraining_dataset_name_for_eval_analysis)
-per_seq_nll_runs_configs_df["Eval Dataset"] = per_seq_nll_runs_configs_df.apply(
-    src.analyze.construct_dataset_name_for_eval_analysis, axis=1
-)
-
-per_seq_nll_runs_configs_df["Num. Parameters"] = per_seq_nll_runs_configs_df[
-    "Model Name"
-].apply(src.analyze.extract_num_model_parameters)
-per_seq_nll_runs_configs_df["Num. Tokens"] = (
-    20.0 * per_seq_nll_runs_configs_df["Num. Parameters"]
-)
-per_seq_nll_runs_configs_df["Num. FLOP (6ND)"] = 120 * np.square(
-    per_seq_nll_runs_configs_df["Num. Parameters"]
+per_seq_scaling_law_fits_df = src.analyze.create_or_load_per_seq_scaling_laws(
+    data_dir=data_dir,
+    sweep_ids=sweep_ids,
+    num_to_subsample=10000,
 )
 
 per_seq_nll_runs_histories_df: pd.DataFrame = (
-    src.analyze.download_wandb_project_runs_histories(
-        wandb_project_path="scaling-memorization-eval",
+    src.analyze.create_or_load_per_seq_nll_runs_histories(
         data_dir=data_dir,
         sweep_ids=sweep_ids,
         refresh=refresh,
-        wandb_username=wandb.api.default_entity,
-        max_workers=32,
-        wandb_run_history_num_samples=10_000_000,
-        filetype="parquet",
     )
 )
 
-per_seq_nll_runs_histories_df = per_seq_nll_runs_histories_df.merge(
-    per_seq_nll_runs_configs_df[
-        [
-            "run_id",
-            "Model Name",
-            "Num. Parameters",
-            "Num. FLOP (6ND)",
-            "Pretraining Dataset",
-            "Eval Dataset",
-        ]
-    ],
-    on="run_id",
-    how="left",
-)
 
 # Sanity check the correctness.
-num_model_sizes = per_seq_nll_runs_configs_df["Num. Parameters"].nunique()
+num_model_sizes = per_seq_nll_runs_histories_df["Num. Parameters"].nunique()
 num_document_counts_by_pretraining_dataset_seq_id_split_df = (
     per_seq_nll_runs_histories_df.groupby(["Pretraining Dataset", "seq_id", "split"])
     .size()
     .reset_index()
 )
 print(
+    "Fraction of test documents with the correct number of documents per dataset per seq_id per split: ",
     np.mean(
         num_document_counts_by_pretraining_dataset_seq_id_split_df[
             num_document_counts_by_pretraining_dataset_seq_id_split_df["split"]
             == "train"
         ][0]
         == num_model_sizes
-    )
+    ),
 )
 print(
+    "Fraction of eval documents with the correct number of documents per dataset per seq_id per split: ",
     np.mean(
         num_document_counts_by_pretraining_dataset_seq_id_split_df[
             num_document_counts_by_pretraining_dataset_seq_id_split_df["split"]
@@ -116,13 +74,7 @@ print(
         == (
             4 * num_model_sizes
         )  # For each model size, we evaluate against all four conditions.
-    )
-)
-
-per_seq_nll_runs_histories_df[
-    "Pretraining Dataset+seq_id"
-] = per_seq_nll_runs_histories_df.apply(
-    lambda row: f"{row['Pretraining Dataset']}_{row['seq_id']}", axis=1
+    ),
 )
 
 train_per_seq_nll_runs_histories_df = per_seq_nll_runs_histories_df[
@@ -136,27 +88,36 @@ eval_per_seq_nll_runs_histories_df = per_seq_nll_runs_histories_df[
 rand_subset_run_id_seq_id = np.random.choice(
     per_seq_nll_runs_histories_df["Pretraining Dataset+seq_id"].unique(),
     replace=False,
-    size=10000,
+    size=1000,
 )
+subset_per_seq_nll_runs_histories_df = per_seq_nll_runs_histories_df[
+    per_seq_nll_runs_histories_df["Pretraining Dataset+seq_id"].isin(
+        rand_subset_run_id_seq_id
+    )
+]
 
 plt.close()
-plt.figure(figsize=(10.0 * 4 / 3, 10))
-g = sns.lineplot(
-    data=per_seq_nll_runs_histories_df[
-        per_seq_nll_runs_histories_df["run_id+seq_id"].isin(rand_subset_run_id_seq_id)
-    ],
+g = sns.relplot(
+    data=subset_per_seq_nll_runs_histories_df,
+    kind="line",
     x="Num. FLOP (6ND)",
     y="avg_nll",
     units="Pretraining Dataset+seq_id",
     estimator=None,
-    hue="split",
+    col="split",
+    col_order=["train", "eval"],
+    alpha=0.01,
 )
 g.set(
     xscale="log",
+    xlabel="Pretraining Compute (6ND)",
     yscale="log",
+    ylabel="Cross Entropy",
 )
-plt.show()
-
+src.plot.save_plot_with_multiple_extensions(
+    plot_dir=results_dir, plot_filename="y=loss_x=flop_col=split_unit=dataset+seq"
+)
+# plt.show()
 
 plt.close()
 g = sns.relplot(
@@ -176,13 +137,13 @@ g.set(
 plt.show()
 
 
-plt.close()
-g = sns.displot(
-    data=train_per_seq_nll_runs_histories_df,
-    kind="line",
-    x="Pretraining Dataset",
-    y="Eval Dataset",
-    hue="Eval Dataset",
-)
+# plt.close()
+# g = sns.displot(
+#     data=train_per_seq_nll_runs_histories_df,
+#     kind="line",
+#     x="Pretraining Dataset",
+#     y="Eval Dataset",
+#     hue="Eval Dataset",
+# )
 
 print("Finished notebook/01_pt_per_seq_scaling_law_fits.py!")

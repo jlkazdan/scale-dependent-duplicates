@@ -128,7 +128,7 @@ class PowerLawScalingFitter:
         # Create a partial function with fixed x and y arguments.
         optimize_point = partial(self.optimize_single_point, x=x_finite, y=y_finite)
 
-        # # Create a process pool - by default, we use the number of CPU cores.
+        # Create a process pool - by default, we use the number of CPU cores.
         with Pool(processes=self.n_workers) as pool:
             # Map the optimization function across all grid points
             results = pool.map(optimize_point, self.grid_search_points)

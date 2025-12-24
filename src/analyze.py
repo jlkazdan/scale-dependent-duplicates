@@ -1,4 +1,5 @@
 import ast
+from functools import partial
 import concurrent.futures
 import hashlib
 import numpy as np
@@ -12,6 +13,7 @@ import time
 from typing import Dict, List, Optional, Set, Tuple, Union
 import wandb
 from tqdm import tqdm
+from tqdm.contrib.concurrent import process_map
 
 import src.globals
 import src.neural_scaling_laws
@@ -122,6 +124,160 @@ def construct_latex_power_law_equation_from_num_reference_models(
         rf"${latex_E_0_of_k} + {latex_C_0_of_k} \cdot N^{{{latex_alpha_of_k}}}$"
     )
     return latex_equation
+
+
+def create_or_load_per_seq_nll_runs_histories(
+    data_dir: str,
+    sweep_ids: List[str],
+    refresh: bool = False,
+) -> pd.DataFrame:
+    per_seq_nll_runs_configs_df: pd.DataFrame = (
+        src.analyze.download_wandb_project_runs_configs(
+            wandb_project_path="scaling-memorization-eval",
+            data_dir=data_dir,
+            sweep_ids=sweep_ids,
+            refresh=refresh,
+            wandb_username=wandb.api.default_entity,
+            finished_only=True,
+        )
+    )
+    per_seq_nll_runs_configs_df["Model Name"] = per_seq_nll_runs_configs_df[
+        "model_config"
+    ].apply(lambda model_config: ast.literal_eval(model_config)["model_name"])
+    per_seq_nll_runs_configs_df["Pretraining Dataset"] = per_seq_nll_runs_configs_df[
+        "Model Name"
+    ].apply(src.analyze.extract_pretraining_dataset_name_for_eval_analysis)
+    per_seq_nll_runs_configs_df["Eval Dataset"] = per_seq_nll_runs_configs_df.apply(
+        src.analyze.construct_dataset_name_for_eval_analysis, axis=1
+    )
+    per_seq_nll_runs_configs_df["Num. Parameters"] = per_seq_nll_runs_configs_df[
+        "Model Name"
+    ].apply(src.analyze.extract_num_model_parameters)
+    per_seq_nll_runs_configs_df["Num. Tokens"] = (
+        20.0 * per_seq_nll_runs_configs_df["Num. Parameters"]
+    )
+    per_seq_nll_runs_configs_df["Num. FLOP (6ND)"] = 120 * np.square(
+        per_seq_nll_runs_configs_df["Num. Parameters"]
+    )
+
+    per_seq_nll_runs_histories_df: pd.DataFrame = (
+        src.analyze.download_wandb_project_runs_histories(
+            wandb_project_path="scaling-memorization-eval",
+            data_dir=data_dir,
+            sweep_ids=sweep_ids,
+            refresh=refresh,
+            wandb_username=wandb.api.default_entity,
+            max_workers=32,
+            wandb_run_history_num_samples=10_000_000,
+            filetype="parquet",
+        )
+    )
+
+    per_seq_nll_runs_histories_df = per_seq_nll_runs_histories_df.merge(
+        per_seq_nll_runs_configs_df[
+            [
+                "run_id",
+                "Model Name",
+                "Num. Parameters",
+                "Num. FLOP (6ND)",
+                "Pretraining Dataset",
+                "Eval Dataset",
+            ]
+        ],
+        on="run_id",
+        how="left",
+    )
+    per_seq_nll_runs_histories_df[
+        "Pretraining Dataset+seq_id"
+    ] = per_seq_nll_runs_histories_df.apply(
+        lambda row: f"{row['Pretraining Dataset']}_{row['seq_id']}", axis=1
+    )
+    return per_seq_nll_runs_histories_df
+
+
+def create_or_load_per_seq_scaling_laws(
+    data_dir: str,
+    sweep_ids: List[str],
+    refresh: bool = False,
+    num_workers: int = 32,
+    num_to_subsample: Optional[int] = None,
+) -> pd.DataFrame:
+    filename = "sweeps=" + ",".join(sweep_ids)
+    hashed_filename = hashlib.md5(filename.encode()).hexdigest()
+    scaling_laws_per_seq_path = os.path.join(
+        data_dir, f"{hashed_filename}_scaling_laws_per_seq_path.parquet"
+    )
+    if not os.path.exists(scaling_laws_per_seq_path) or refresh:
+        per_seq_nll_runs_histories_df = create_or_load_per_seq_nll_runs_histories(
+            data_dir=data_dir,
+            sweep_ids=sweep_ids,
+            refresh=refresh,
+        )
+
+        num_model_sizes = per_seq_nll_runs_histories_df["Num. Parameters"].nunique()
+
+        grouped_data = [
+            subset_df
+            for _, subset_df in per_seq_nll_runs_histories_df.groupby(
+                ["Pretraining Dataset", "Eval Dataset", "seq_id", "split"]
+            )
+            if len(subset_df) == num_model_sizes
+        ]
+        if num_to_subsample is not None:
+            import random
+            grouped_data = random.sample(grouped_data, num_to_subsample)
+
+        fit_func = partial(
+            src.analyze.fit_neural_scaling_law,
+            x_col="Num. FLOP (6ND)",
+            y_col="avg_nll",
+            additional_columns_to_add=[
+                "Pretraining Dataset",
+                "Eval Dataset",
+                "seq_id",
+                "split",
+            ],
+        )
+
+        results: List[Dict[str, float]] = process_map(
+            fit_func,
+            grouped_data,
+            max_workers=min(num_workers, os.cpu_count()),
+            chunksize=len(grouped_data) // num_workers,
+        )
+
+        per_seq_scaling_law_fits_df = pd.DataFrame(results)
+
+        # Sequential implementation.
+        # per_seq_scaling_law_fits_df = pd.DataFrame(
+        #     [
+        #         src.analyze.fit_neural_scaling_law(
+        #             subset_df,
+        #             x_col="Num. FLOP (6ND)",
+        #             y_col="avg_nll",
+        #             additional_columns_to_add=[
+        #                 "Pretraining Dataset",
+        #                 "seq_id",
+        #                 "split",
+        #             ],
+        #         )
+        #         for (
+        #             pt_dataset,
+        #             seq_id,
+        #             split,
+        #         ), subset_df in per_seq_nll_runs_histories_df.groupby(
+        #             ["Pretraining Dataset", "seq_id", "split"]
+        #         )
+        #     ]
+        # )
+
+        per_seq_scaling_law_fits_df.to_parquet(
+            path=scaling_laws_per_seq_path, index=False, engine="pyarrow"
+        )
+        del per_seq_scaling_law_fits_df
+
+    per_seq_scaling_law_fits_df = pd.read_parquet(scaling_laws_per_seq_path)
+    return per_seq_scaling_law_fits_df
 
 
 def create_or_load_strong_membership_inference_attack_data(
