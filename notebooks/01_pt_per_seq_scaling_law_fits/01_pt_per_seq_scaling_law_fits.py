@@ -12,8 +12,8 @@ import wandb
 import src.analyze
 import src.plot
 
-refresh = False
-# refresh = True
+# refresh = False
+refresh = True
 
 data_dir, results_dir = src.analyze.setup_notebook_dir(
     notebook_dir=os.path.dirname(os.path.abspath(__file__)),
@@ -35,8 +35,37 @@ sweep_ids = [
 per_seq_scaling_law_fits_df = src.analyze.create_or_load_per_seq_scaling_laws(
     data_dir=data_dir,
     sweep_ids=sweep_ids,
-    num_to_subsample=10000,
+    refresh=refresh,
+    num_to_subsample=5000,
 )
+
+plt.close()
+vars_to_plot = ["fit_loss", "fit_param_E_0", "fit_param_C_0", "fit_param_alpha"]
+g = sns.pairplot(
+    data=per_seq_scaling_law_fits_df[vars_to_plot],
+    kind="scatter",
+    corner=True,
+)
+# Define your custom limits for each variable
+custom_limits = {}
+for var_to_plot in vars_to_plot:
+    custom_limits[var_to_plot] = (
+        per_seq_scaling_law_fits_df[var_to_plot].quantile(q=0.01),
+        per_seq_scaling_law_fits_df[var_to_plot].quantile(q=0.99),
+    )
+
+# Apply limits to each subplot
+for i, y_var in enumerate(vars_to_plot):
+    for j, x_var in enumerate(vars_to_plot):
+        ax = g.axes[i, j]
+        if ax is not None:  # ax is None for the hidden upper triangle when corner=True
+            if x_var in custom_limits:
+                ax.set_xlim(custom_limits[x_var])
+                ax.set_xscale("log")
+            if y_var in custom_limits:
+                ax.set_ylim(custom_limits[y_var])
+                ax.set_yscale("log")
+plt.show()
 
 per_seq_nll_runs_histories_df: pd.DataFrame = (
     src.analyze.create_or_load_per_seq_nll_runs_histories(

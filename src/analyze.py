@@ -199,7 +199,7 @@ def create_or_load_per_seq_scaling_laws(
     data_dir: str,
     sweep_ids: List[str],
     refresh: bool = False,
-    num_workers: int = 32,
+    num_outer_workers: int = 32,
     num_to_subsample: Optional[int] = None,
 ) -> pd.DataFrame:
     filename = "sweeps=" + ",".join(sweep_ids)
@@ -225,51 +225,58 @@ def create_or_load_per_seq_scaling_laws(
         ]
         if num_to_subsample is not None:
             import random
+
             grouped_data = random.sample(grouped_data, num_to_subsample)
 
-        fit_func = partial(
-            src.analyze.fit_neural_scaling_law,
-            x_col="Num. FLOP (6ND)",
-            y_col="avg_nll",
-            additional_columns_to_add=[
-                "Pretraining Dataset",
-                "Eval Dataset",
-                "seq_id",
-                "split",
-            ],
-        )
-
-        results: List[Dict[str, float]] = process_map(
-            fit_func,
-            grouped_data,
-            max_workers=min(num_workers, os.cpu_count()),
-            chunksize=len(grouped_data) // num_workers,
-        )
-
-        per_seq_scaling_law_fits_df = pd.DataFrame(results)
+        # # Prevent a massive increase of processes due to nested Pool.
+        # num_outer_workers = min(num_outer_workers, os.cpu_count())
+        # num_inner_workers = os.cpu_count() // num_outer_workers
+        #
+        # fit_func = partial(
+        #     src.analyze.fit_neural_scaling_law,
+        #     x_col="Num. FLOP (6ND)",
+        #     y_col="avg_nll",
+        #     additional_columns_to_add=[
+        #         "Pretraining Dataset",
+        #         "Eval Dataset",
+        #         "seq_id",
+        #         "split",
+        #     ],
+        #     n_workers=num_inner_workers,
+        # )
+        #
+        # results: List[Dict[str, float]] = process_map(
+        #     fit_func,
+        #     grouped_data,
+        #     max_workers=num_outer_workers,
+        #     chunksize=len(grouped_data) // num_outer_workers,
+        # )
+        #
+        # per_seq_scaling_law_fits_df = pd.DataFrame(results)
 
         # Sequential implementation.
-        # per_seq_scaling_law_fits_df = pd.DataFrame(
-        #     [
-        #         src.analyze.fit_neural_scaling_law(
-        #             subset_df,
-        #             x_col="Num. FLOP (6ND)",
-        #             y_col="avg_nll",
-        #             additional_columns_to_add=[
-        #                 "Pretraining Dataset",
-        #                 "seq_id",
-        #                 "split",
-        #             ],
-        #         )
-        #         for (
-        #             pt_dataset,
-        #             seq_id,
-        #             split,
-        #         ), subset_df in per_seq_nll_runs_histories_df.groupby(
-        #             ["Pretraining Dataset", "seq_id", "split"]
-        #         )
-        #     ]
-        # )
+        per_seq_scaling_law_fits_df = pd.DataFrame(
+            [
+                src.analyze.fit_neural_scaling_law(
+                    subset_df,
+                    x_col="Num. FLOP (6ND)",
+                    y_col="avg_nll",
+                    additional_columns_to_add=[
+                        "Pretraining Dataset",
+                        "seq_id",
+                        "split",
+                    ],
+                )
+                # for (
+                #     pt_dataset,
+                #     seq_id,
+                #     split,
+                # ), subset_df in per_seq_nll_runs_histories_df.groupby(
+                #     ["Pretraining Dataset", "seq_id", "split"]
+                # )
+                for subset_df in grouped_data
+            ]
+        )
 
         per_seq_scaling_law_fits_df.to_parquet(
             path=scaling_laws_per_seq_path, index=False, engine="pyarrow"
@@ -727,6 +734,7 @@ def fit_neural_scaling_law(
     y_col: str = "neg_log_",
     exclude_nans: bool = True,
     additional_columns_to_add: List[str] | None = None,
+    n_workers: int = 10,
 ) -> Dict[str, float]:
     x_vals_all = df[x_col].values
     y_vals_all = df[y_col].values
@@ -742,7 +750,10 @@ def fit_neural_scaling_law(
     if len(x_vals) >= 3:
         # Fit a power law loss = E + A * FLOPS^(-alpha) via linear regression in log space.
         best_fit_result, y_all_pred = src.neural_scaling_laws.fit_chinchilla_scaling(
-            x_all=x_vals, y_all=y_vals, functional_form="compute"
+            x_all=x_vals,
+            y_all=y_vals,
+            functional_form="compute",
+            n_workers=n_workers,
         )
         fit_results_dict = dict(
             covariate_cols=x_col,
