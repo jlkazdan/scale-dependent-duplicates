@@ -27,7 +27,7 @@ sweep_ids = [
     "stzt1epz",  # Qwen 3  153M 1xOT
     "vw7a3nt4",  # Qwen 3  344M 1xOT
     "wr21ll5w",  # Qwen 3  499M 1xOT
-    # "",  # Qwen 3  M 1xOT
+    "xl54i94h",  # Qwen 3  660M 1xOT
     # "",  # Qwen 3  M 1xOT
 ]
 
@@ -135,4 +135,5 @@ src.plot.save_plot_with_multiple_extensions(
     plot_filename="y=eval-loss_x=flop_overlay=fit-scaling-laws",
 )
 # plt.show()
+
 print("Finished notebook/00_pt_scaling_law_fits.py!")

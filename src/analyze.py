@@ -395,6 +395,12 @@ def download_wandb_project_runs_configs(
         runs_configs_df = pd.DataFrame(sweep_results_list)
         runs_configs_df.reset_index(inplace=True, drop=True)
 
+        # Cast massive FLOP counts to float to avoid C long overflow
+        if "total_flos" in runs_configs_df.columns:
+            runs_configs_df["total_flos"] = pd.to_numeric(
+                runs_configs_df["total_flos"], errors="coerce"
+            ).astype(float)
+
         # Save to disk
         runs_configs_df.to_csv(
             runs_configs_df_path.replace(filetype, "csv"), index=False

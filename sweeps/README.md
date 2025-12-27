@@ -18,7 +18,9 @@ All at 2k max context length.
 | **499M**   |       40        |     OOM      | ✅ Tested  |
 | **499M**   |       38        |     OOM      | ✅ Tested  |
 | **499M**   |       38        |    129 GB    | ✅ Tested  |
-| **660M**   |       64        |     TBD      | ⏳ Pending |
+| **660M**   |       32        |     OOM      | ✅ Tested  |
+| **660M**   |       26        |    114 GB    | ⏳ Pending |
+| **806M**   |       64        |     TBD      | ⏳ Pending |
 | **806M**   |       64        |     TBD      | ⏳ Pending |
 
 Note: For 344M, at 44 per device batch size, `gradient_accumulation_steps_unrounded` is 7.11, 

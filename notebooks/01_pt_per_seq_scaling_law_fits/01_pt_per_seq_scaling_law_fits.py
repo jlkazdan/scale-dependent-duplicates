@@ -21,10 +21,10 @@ data_dir, results_dir = src.analyze.setup_notebook_dir(
 )
 
 sweep_ids = [
-    "3dur7146",  # Qwen 3   34M 1xOT
-    "q44gahpv",  # Qwen 3   48M 1xOT
-    "eulzxjnj",  # Qwen 3   63M 1xOT
-    "mrekx67a",  # Qwen 3   93M 1xOT
+    "6w78yino",  # Qwen 3   34M 1xOT
+    "w0gj0s7v",  # Qwen 3   48M 1xOT
+    "rj7wb1qp",  # Qwen 3   63M 1xOT
+    "gekq38pk",  # Qwen 3   93M 1xOT
     # "",  # Qwen 3  153M 1xOT
     # "",  # Qwen 3  344M 1xOT
     # "",  # Qwen 3  499M 1xOT
