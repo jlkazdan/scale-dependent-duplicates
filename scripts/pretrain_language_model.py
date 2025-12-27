@@ -319,7 +319,7 @@ def compute_derived_hyperparameters(
         / wandb_config["trainer_config"]["num_train_epochs"]
     )
 
-    # 5. Calculate the learning rate. It should grow with square-root of batch size.
+    # 5. Calculate the learning rate. It should grow with the square root of the batch size.
     learning_rate = wandb_config["trainer_config"]["base_learning_rate"] * np.sqrt(
         num_tokens_per_optimizer_step
     )

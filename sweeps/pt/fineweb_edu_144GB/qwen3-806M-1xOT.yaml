@@ -2,7 +2,7 @@ command:
   - ${env}
   - torchrun
   - --standalone
-  - --nproc_per_node=2
+  - --nproc_per_node=4
   - ${program}
   - ${args}
 program: scripts/pretrain_language_model.py

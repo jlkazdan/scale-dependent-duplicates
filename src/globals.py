@@ -30,7 +30,8 @@ DEFAULT_PRETRAINING_CONFIG = {
     },
     "model_config": {
         "attn_implementation": "flash_attention_2",
-        "model_name": "Qwen3/Qwen3-34M",
+        # "model_name": "Qwen3/Qwen3-34M",
+        "model_name": "Qwen3/Qwen3-660M",
         # "model_name": "Qwen3/Qwen3-48M",
         # "model_name": "Qwen3/Qwen3-63M",
         # "model_name": "Qwen3/Qwen3-93M",

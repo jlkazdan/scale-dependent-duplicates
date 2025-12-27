@@ -2,7 +2,7 @@ command:
   - ${env}
   - torchrun
   - --standalone
-  - --nproc_per_node=2
+  - --nproc_per_node=3
   - ${program}
   - ${args}
 program: scripts/pretrain_language_model.py
@@ -71,9 +71,9 @@ parameters:
       overtrain_multiplier:
         values: [ 1.0 ]
       per_device_eval_batch_size:
-        values: [ 40 ]
+        values: [ 38 ]
       per_device_train_batch_size:
-        values: [ 40 ]
+        values: [ 26 ]
       remove_unused_columns:
         values: [ True ]
       report_to:
