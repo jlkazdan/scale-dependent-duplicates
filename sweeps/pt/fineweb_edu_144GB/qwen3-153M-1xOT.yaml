@@ -6,7 +6,7 @@ command:
   - ${program}
   - ${args}
 program: scripts/pretrain_language_model.py
-entity: rylan
+entity: jkazdan
 project: scaling-memorization-pt
 method: grid
 parameters:
@@ -71,9 +71,9 @@ parameters:
       overtrain_multiplier:
         values: [ 1.0 ]
       per_device_eval_batch_size:
-        values: [ 64 ]
+        values: [ 16 ]
       per_device_train_batch_size:
-        values: [ 64 ]
+        values: [ 8 ]
       remove_unused_columns:
         values: [ True ]
       report_to:

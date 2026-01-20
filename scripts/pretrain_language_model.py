@@ -1,5 +1,11 @@
 import os
 
+if "HF_HOME" in os.environ:
+    os.environ["TRANSFORMERS_CACHE"] = os.environ["HF_HOME"]
+    os.environ["HUGGINGFACE_HUB_CACHE"] = os.environ["HF_HOME"]
+    os.environ["HF_DATASETS_CACHE"] = os.environ["HF_HOME"]
+
+
 # Rok asked us to include the following specifications in our code to prevent CPUs from spinning idly:
 WORLD_SIZE_ENV = int(os.environ.get("WORLD_SIZE", "1"))
 if WORLD_SIZE_ENV <= 1:
@@ -168,7 +174,7 @@ def pretrain():
             "gradient_accumulation_steps"
         ],
         gradient_checkpointing=wandb_config["trainer_config"]["gradient_checkpointing"],
-        hub_model_id=f"RylanSchaeffer/{pted_model_hf_name}",
+        hub_model_id=f"jkazdan/{pted_model_hf_name}",
         hub_private_repo=True,
         hub_strategy=wandb_config["trainer_config"]["hub_strategy"],
         include_num_input_tokens_seen=True,
@@ -217,14 +223,19 @@ def pretrain():
         )
 
     # Apply the preparation to both the training and evaluation splits.
+    print('started dataset prep')
     train_dataset = prepare_dataset_for_model(train_dataset)
     eval_dataset = prepare_dataset_for_model(eval_dataset)
+    print('ended dataset prep')
 
+    print('started collator')
     data_collator = DataCollatorWithFlattening(
         return_position_ids=True,  # default True; explicit for clarity.
         separator_id=-100,  # ensures no cross-example predictions.
     )
+    print('finished collator')
 
+    print('started trainer')
     trainer = Trainer(
         model=model,
         processing_class=tokenizer,
@@ -233,6 +244,7 @@ def pretrain():
         eval_dataset=eval_dataset,
         data_collator=data_collator,
     )
+    print('ended trainer')
 
     # Train.
     if _is_main():
@@ -309,7 +321,7 @@ def compute_derived_hyperparameters(
         * wandb_config["trainer_config"]["per_device_train_batch_size"]
         * wandb_config["trainer_config"]["max_length"]
     )
-    gradient_accumulation_steps = math.ceil(
+    gradient_accumulation_steps = round(
         num_tokens_per_optimizer_step / num_tokens_per_forward_pass
     )
 
@@ -359,7 +371,23 @@ def create_pretrained_model_huggingface_name(wandb_config: Dict[str, Any]) -> st
     direction = wandb_config["data_config"]["direction"]
     shuffle_seed = wandb_config["data_config"]["shuffle_seed"]
     train_test_split_seed = wandb_config["data_config"]["train_test_split_seed"]
+
+    # Build base name.
     pted_model_hf_name = f"scale_mem_{init_model_name}_epch_{num_train_epochs}_ot_{overtrain_multiplier}_s_{seed}_dir_{direction}_shfs_{shuffle_seed}_ttss_{train_test_split_seed}"
+
+    # Add suffix for sampling with replacement experiments.
+    sample_with_replacement = wandb_config["data_config"].get("sample_with_replacement", False)
+    if sample_with_replacement:
+        unique_datapool_size = wandb_config["data_config"].get("unique_datapool_size")
+        # Format pool size in a compact way (e.g., 190M, 10M, 1M, 500K).
+        if unique_datapool_size >= 1e6:
+            pool_size_str = f"{unique_datapool_size / 1e6:.0f}M"
+        elif unique_datapool_size >= 1e3:
+            pool_size_str = f"{unique_datapool_size / 1e3:.0f}K"
+        else:
+            pool_size_str = str(unique_datapool_size)
+        pted_model_hf_name += f"_repl_pool_{pool_size_str}"
+
     if len(pted_model_hf_name) > 94:
         raise ValueError(f"pted_model_hf_name is too long: {pted_model_hf_name}")
     return pted_model_hf_name
@@ -407,7 +435,7 @@ def initialize_wandb():
         else:
             run = wandb.init(
                 project="scaling-memorization-pt",
-                entity="rylan",
+                entity="jkazdan",
                 config=src.globals.DEFAULT_PRETRAINING_CONFIG,
             )
         run_id = run.id
@@ -441,5 +469,12 @@ def initialize_wandb():
 
 
 if __name__ == "__main__":
+    if _is_main():
+        print("=" * 80)
+        print("CACHE LOCATIONS AFTER initialize_wandb():")
+        print(f"HF_HOME: {os.environ.get('HF_HOME', 'NOT SET')}")
+        print(f"TRANSFORMERS_CACHE: {os.environ.get('TRANSFORMERS_CACHE', 'NOT SET')}")
+        print(f"HF_DATASETS_CACHE: {os.environ.get('HF_DATASETS_CACHE', 'NOT SET')}")
+        print("=" * 80)
     pretrain()
     logging.info("Finished pretrain_language_model.py!")
