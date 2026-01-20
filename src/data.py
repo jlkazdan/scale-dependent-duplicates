@@ -77,7 +77,7 @@ def create_dataset_for_pretraining(
         return example
 
     # Specify where to cache rank-0 tokenized artifacts so other ranks can just load
-    hf_cache_root = os.getenv("HF_DATASETS_CACHE") or "/data/hf_cache"
+    hf_cache_root = os.getenv("HF_DATASETS_CACHE") or "/lfs/skampere1/0/shared_hf_cache"
     print('making directory to stash the data')
     os.makedirs(hf_cache_root, exist_ok=True)
     corpus_train_dataset_subset_cache_dir = os.path.join(
@@ -100,7 +100,7 @@ def create_dataset_for_pretraining(
                 "HuggingFaceTB/smollm-corpus",
                 "fineweb-edu-dedup",
                 split="train",  # This is the only split that exists.
-                cache_dir="/data/hf_home",
+                cache_dir="/lfs/skampere1/0/shared_hf_cache",
                 num_proc=num_proc,
             )
             print('got the dataset')

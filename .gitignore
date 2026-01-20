@@ -1,2 +1,8 @@
 .idea
-wandb/
+wandb/# cached datasets / HF artifacts
+cached_datasets/
+**/*.arrow
+
+# python cache
+**/__pycache__/
+*.pyc
