@@ -188,9 +188,7 @@ def create_dataset_for_pretraining(
             )
 
             # Vectorized lookup of token lengths and cumulative sum.
-            print('selecting tokens')
             sampled_token_lengths = pool_token_lengths[sampled_pool_indices]
-            print('got tokens')
             cumulative_tokens = np.cumsum(sampled_token_lengths)
 
             # Find where we exceed target and trim.
