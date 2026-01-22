@@ -173,30 +173,25 @@ def create_dataset_for_pretraining(
             )
 
             # Step 2: Sample with replacement from the pool until we reach target tokens.
-            # We sample indices into the pool (0 to unique_datapool_size-1).
-            sampled_pool_indices = []
-            total_tokens = 0
-
-            # Use a separate RNG for sampling with replacement to ensure reproducibility.
+            # Use vectorized numpy operations for efficiency.
             sample_rng = np.random.default_rng(data_config["shuffle_seed"] + 1000)
 
-            while total_tokens < num_training_tokens_per_epoch:
-                # Sample a batch of indices at once for efficiency.
-                batch_size = min(
-                    100000,
-                    int(1.1 * (num_training_tokens_per_epoch - total_tokens) / avg_pool_tokens_per_doc)
-                )
-                batch_size = max(batch_size, 1000)  # Minimum batch size
+            # Estimate how many samples we need (with buffer).
+            estimated_samples = int(1.2 * num_training_tokens_per_epoch / avg_pool_tokens_per_doc)
 
-                new_indices = sample_rng.integers(0, unique_datapool_size, size=batch_size)
+            # Generate all indices at once.
+            sampled_pool_indices = sample_rng.integers(
+                0, unique_datapool_size, size=estimated_samples, dtype=np.int64
+            )
 
-                for idx in new_indices:
-                    sampled_pool_indices.append(idx)
-                    total_tokens += pool_token_lengths[idx]
-                    if total_tokens >= num_training_tokens_per_epoch:
-                        break
+            # Vectorized lookup of token lengths and cumulative sum.
+            sampled_token_lengths = pool_token_lengths[sampled_pool_indices]
+            cumulative_tokens = np.cumsum(sampled_token_lengths)
 
-            sampled_pool_indices = np.array(sampled_pool_indices, dtype=np.int64)
+            # Find where we exceed target and trim.
+            idx_to_keep = np.searchsorted(cumulative_tokens, num_training_tokens_per_epoch)
+            sampled_pool_indices = sampled_pool_indices[: idx_to_keep + 1]
+            total_tokens = cumulative_tokens[idx_to_keep]
 
             print(
                 f"Sampled {len(sampled_pool_indices):,} documents (with replacement) "
