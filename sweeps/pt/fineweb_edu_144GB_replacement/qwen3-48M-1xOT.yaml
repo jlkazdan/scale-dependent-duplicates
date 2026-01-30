@@ -17,13 +17,13 @@ parameters:
       direction:
         values: [ "top", "bot" ]
       shuffle_seed:
-        values: [ 0 , 1 ]
+        values: [ 0 ]
       train_test_split_seed:
         values: [ 0 ]
       sample_with_replacement:
         values: [ True ]
       unique_datapool_size:
-        values: [ 100000 ]
+        values: [ 10000000 ]
   model_config:
     parameters:
       attn_implementation:

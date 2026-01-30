@@ -17,13 +17,13 @@ parameters:
       direction:
         values: [ "top", "bot" ]
       shuffle_seed:
-        values: [ 0 , 1 ]
+        values: [ 0 ]
       train_test_split_seed:
         values: [ 0 ]
       sample_with_replacement:
         values: [ True ]
       unique_datapool_size:
-        values: [ 100000 ]
+        values: [ 300000, 600000 ]
   model_config:
     parameters:
       attn_implementation:
@@ -75,9 +75,9 @@ parameters:
       overtrain_multiplier:
         values: [ 1.0 ]
       per_device_eval_batch_size:
-        values: [ 18 ]
+        values: [ 36 ]
       per_device_train_batch_size:
-        values: [ 18 ]
+        values: [ 36 ]
       remove_unused_columns:
         values: [ True ]
       report_to:

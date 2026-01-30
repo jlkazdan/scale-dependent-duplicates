@@ -2,12 +2,12 @@ command:
   - ${env}
   - torchrun
   - --standalone
-  - --nproc_per_node=1
+  - --nproc_per_node=3
   - ${program}
   - ${args}
 program: scripts/pretrain_language_model.py
-entity: rylan
-project: scaling-memorization-pt
+entity: jkazdan
+project: duplicates_semantics
 method: grid
 parameters:
   data_config:
@@ -17,13 +17,13 @@ parameters:
       direction:
         values: [ "top", "bot" ]
       shuffle_seed:
-        values: [ 0 , 1 ]
+        values: [ 0 ]
       train_test_split_seed:
         values: [ 0 ]
       sample_with_replacement:
         values: [ True ]
       unique_datapool_size:
-        values: [ 190000000 ]
+        values: [ 300000, 600000, 1000000, 10000000, 100000000 ]
   model_config:
     parameters:
       attn_implementation:
@@ -45,7 +45,7 @@ parameters:
       dataloader_num_workers:
         values: [ 8 ]
       dataloader_prefetch_factor:
-        values: [ 4 ]
+        values: [ 8 ]
       eval_on_start:
         values: [ True ]
       eval_strategy:
@@ -75,7 +75,7 @@ parameters:
       overtrain_multiplier:
         values: [ 1.0 ]
       per_device_eval_batch_size:
-        values: [ 16 ]
+        values: [ 25 ]
       per_device_train_batch_size:
         values: [ 16 ]
       remove_unused_columns:

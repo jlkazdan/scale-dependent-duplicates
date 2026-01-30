@@ -2,12 +2,12 @@ command:
   - ${env}
   - torchrun
   - --standalone
-  - --nproc_per_node=3
+  - --nproc_per_node=1
   - ${program}
   - ${args}
 program: scripts/pretrain_language_model.py
 entity: jkazdan
-project: duplicates_semantics
+project: scaling-memorization-pt
 method: grid
 parameters:
   data_config:
@@ -17,19 +17,15 @@ parameters:
       direction:
         values: [ "top", "bot" ]
       shuffle_seed:
-        values: [ 0 ]
+        values: [ 0 , 1 ]
       train_test_split_seed:
         values: [ 0 ]
-      sample_with_replacement:
-        values: [ True ]
-      unique_datapool_size:
-        values: [ 300000, 600000, 1000000, 10000000, 100000000 ]
   model_config:
     parameters:
       attn_implementation:
         values: [ "flash_attention_2" ]
       model_name:
-        values: [ "Qwen3/Qwen3-153M" ]
+        values: [ "Qwen3/Qwen3-34M" ]
       torch_dtype:
         values: [ "bfloat16" ]
   trainer_config:
@@ -45,13 +41,13 @@ parameters:
       dataloader_num_workers:
         values: [ 8 ]
       dataloader_prefetch_factor:
-        values: [ 8 ]
+        values: [ 4 ]
       eval_on_start:
         values: [ True ]
       eval_strategy:
         values: [ steps ]
       eval_steps:
-        values: [ 900 ]
+        values: [ 200 ]
       gradient_checkpointing:
         values: [ False ]
       hub_strategy:
@@ -59,7 +55,7 @@ parameters:
       base_learning_rate:
         values: [ 0.000001 ]
       logging_steps:
-        values: [ 25 ]
+        values: [ 10 ]
       lr_scheduler_type:
         values: [ "cosine" ]
       max_grad_norm:
@@ -75,9 +71,9 @@ parameters:
       overtrain_multiplier:
         values: [ 1.0 ]
       per_device_eval_batch_size:
-        values: [ 25 ]
+        values: [ 18 ]
       per_device_train_batch_size:
-        values: [ 16 ]
+        values: [ 18 ]
       remove_unused_columns:
         values: [ True ]
       report_to:

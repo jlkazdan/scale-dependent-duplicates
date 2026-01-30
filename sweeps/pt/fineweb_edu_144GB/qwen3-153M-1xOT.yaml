@@ -41,7 +41,7 @@ parameters:
       dataloader_num_workers:
         values: [ 8 ]
       dataloader_prefetch_factor:
-        values: [ 4 ]
+        values: [ 8 ]
       eval_on_start:
         values: [ True ]
       eval_strategy:
