@@ -93,8 +93,9 @@ def create_dataset_for_pretraining(
         target_num_training_tokens_total = trainer_config[
             "target_num_training_tokens_total"
         ]
-
+        
         if data_config["corpus"] == "fineweb-edu-dedup":
+            print('starting load')
             corpus_full_dataset = load_dataset(
                 "HuggingFaceTB/smollm-corpus",
                 "fineweb-edu-dedup",
@@ -102,6 +103,7 @@ def create_dataset_for_pretraining(
                 cache_dir="/data/hf_home",
                 num_proc=num_proc,
             )
+            print('got the dataset')
             # The full dataset is 220B tokens in 190,168,005 rows.
             # We want 150M tokens for test.
             corpus_split_dataset = corpus_full_dataset.train_test_split(
@@ -140,6 +142,7 @@ def create_dataset_for_pretraining(
         unique_datapool_size = data_config.get("unique_datapool_size", None)
 
         if sample_with_replacement:
+            print('started vectorized selection')
             # Sampling WITH replacement from a finite pool of unique datapoints.
             print(f"Sampling WITH replacement enabled.")
 
@@ -185,7 +188,9 @@ def create_dataset_for_pretraining(
             )
 
             # Vectorized lookup of token lengths and cumulative sum.
+            print('selecting tokens')
             sampled_token_lengths = pool_token_lengths[sampled_pool_indices]
+            print('got tokens')
             cumulative_tokens = np.cumsum(sampled_token_lengths)
 
             # Find where we exceed target and trim.
