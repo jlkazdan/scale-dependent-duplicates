@@ -6,7 +6,7 @@ command:
   - ${program}
   - ${args}
 program: scripts/pretrain_language_model.py
-entity: jkazdan
+entity: rylan
 project: scaling-memorization-pt
 method: grid
 parameters:
@@ -20,12 +20,16 @@ parameters:
         values: [ 0 , 1 ]
       train_test_split_seed:
         values: [ 0 ]
+      sample_with_replacement:
+        values: [ True ]
+      unique_datapool_size:
+        values: [ 190000000 ]
   model_config:
     parameters:
       attn_implementation:
         values: [ "flash_attention_2" ]
       model_name:
-        values: [ "Qwen3/Qwen3-93M" ]
+        values: [ "Qwen3/Qwen3-153M" ]
       torch_dtype:
         values: [ "bfloat16" ]
   trainer_config:
@@ -47,7 +51,7 @@ parameters:
       eval_strategy:
         values: [ steps ]
       eval_steps:
-        values: [ 550 ]
+        values: [ 900 ]
       gradient_checkpointing:
         values: [ False ]
       hub_strategy:

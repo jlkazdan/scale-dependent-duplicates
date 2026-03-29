@@ -5,10 +5,13 @@ DEFAULT_EVALUATION_CONFIG = {
         # "direction": "top",
         "shuffle_seed": 0,
         "train_test_split_seed": 0,
+        # Sampling with replacement from a finite pool of unique datapoints.
+        "sample_with_replacement": False,
+        "unique_datapool_size": None,
     },
     "model_config": {
         "attn_implementation": "flash_attention_2",
-        "model_name": "RylanSchaeffer/scale_mem_Qwen3-48M_epch_1_ot_1_s_0_dir_bot_shfs_1_ttss_0",
+        "model_name": "jkazdan/scale_mem_Qwen3-48M_epch_1_ot_1_s_0_dir_bot_shfs_1_ttss_0",
         "torch_dtype": "bfloat16",
     },
     "trainer_config": {
@@ -27,11 +30,19 @@ DEFAULT_PRETRAINING_CONFIG = {
         # "direction": "top",
         "shuffle_seed": 0,
         "train_test_split_seed": 0,
+        # Sampling with replacement from a finite pool of unique datapoints.
+        # If True, sample with replacement from a pool of `unique_datapool_size` unique texts.
+        # If False, use the standard sampling without replacement (original behavior).
+        "sample_with_replacement": False,
+        # Number of unique datapoints in the pool when sampling with replacement.
+        # Only used when sample_with_replacement is True.
+        # Set to None to use all available training data as the pool.
+        "unique_datapool_size": None,
     },
     "model_config": {
         "attn_implementation": "flash_attention_2",
-        # "model_name": "Qwen3/Qwen3-34M",
-        "model_name": "Qwen3/Qwen3-660M",
+        "model_name": "Qwen3/Qwen3-34M",
+        # "model_name": "Qwen3/Qwen3-660M",
         # "model_name": "Qwen3/Qwen3-48M",
         # "model_name": "Qwen3/Qwen3-63M",
         # "model_name": "Qwen3/Qwen3-93M",
@@ -64,9 +75,9 @@ DEFAULT_PRETRAINING_CONFIG = {
         # "overtrain_multiplier": 0.1,
         # "overtrain_multiplier": 0.05,
         "overtrain_multiplier": 0.01,
-        "per_device_eval_batch_size": 23,
+        "per_device_eval_batch_size": 12,
         # "per_device_train_batch_size": 4,
-        "per_device_train_batch_size": 23,
+        "per_device_train_batch_size": 12,
         "remove_unused_columns": False,
         # "remove_unused_columns": True,
         "report_to": "wandb",

@@ -52,6 +52,7 @@ def create_dataset_for_pretraining(
     tokenizer: PreTrainedTokenizer,
     cols_to_keep: Optional[Set[str]] = None,
 ) -> Dict[str, Union[Dataset, List[Dataset]]]:
+    print('starting to create pretraining dataset')
     if cols_to_keep is None:
         cols_to_keep = {"input_ids", "attention_mask", "token_length", "id"}
 
@@ -76,15 +77,14 @@ def create_dataset_for_pretraining(
         return example
 
     # Specify where to cache rank-0 tokenized artifacts so other ranks can just load
-    hf_cache_root = os.getenv("HF_DATASETS_CACHE") or os.path.join(
-        os.getcwd(), ".hf_cache"
-    )
+    hf_cache_root = os.getenv("HF_DATASETS_CACHE") or "/data/hf_cache"
+    print('making directory to stash the data')
     os.makedirs(hf_cache_root, exist_ok=True)
     corpus_train_dataset_subset_cache_dir = os.path.join(
         hf_cache_root, "corpus_subset_tokenized"
     )
     corpus_eval_dataset_cache_dir = os.path.join(hf_cache_root, "corpus_eval_tokenized")
-
+    print('starting creation')
     if _is_main():
         num_proc = min(64, os.cpu_count())
 
@@ -93,14 +93,17 @@ def create_dataset_for_pretraining(
         target_num_training_tokens_total = trainer_config[
             "target_num_training_tokens_total"
         ]
-
+        
         if data_config["corpus"] == "fineweb-edu-dedup":
+            print('starting load')
             corpus_full_dataset = load_dataset(
                 "HuggingFaceTB/smollm-corpus",
                 "fineweb-edu-dedup",
                 split="train",  # This is the only split that exists.
+                cache_dir="/data/hf_home",
                 num_proc=num_proc,
             )
+            print('got the dataset')
             # The full dataset is 220B tokens in 190,168,005 rows.
             # We want 150M tokens for test.
             corpus_split_dataset = corpus_full_dataset.train_test_split(
@@ -114,7 +117,7 @@ def create_dataset_for_pretraining(
         else:
             raise ValueError
 
-        # Subsample the appropriate number of documents without replacement.
+        # Subsample the appropriate number of documents.
         print("Shuffling, subsampling and tokenizing the pretraining corpus.")
         estimated_docs_needed = int(
             1.1 * num_training_tokens_per_epoch / avg_tokens_per_doc
@@ -134,20 +137,92 @@ def create_dataset_for_pretraining(
                 f"Impermissible value of direction (must be 'top' or 'bot'): {data_config['direction']}"
             )
 
-        corpus_train_dataset_subset = corpus_train_dataset.select(
-            active_indices[:estimated_docs_needed]
-        ).map(tokenize_truncate_and_count, num_proc=num_proc)
+        # Check if we should sample with replacement from a finite pool.
+        sample_with_replacement = data_config.get("sample_with_replacement", False)
+        unique_datapool_size = data_config.get("unique_datapool_size", None)
 
-        # Figure out how many documents to drop to meet our target number of tokens.
-        cumulative_lengths = np.cumsum(corpus_train_dataset_subset["token_length"])
-        # Find the index where we exceed the target.
-        # This finds the first index where the sum is >= target.
-        idx_to_keep = np.searchsorted(cumulative_lengths, num_training_tokens_per_epoch)
+        if sample_with_replacement:
+            print('started vectorized selection')
+            # Sampling WITH replacement from a finite pool of unique datapoints.
+            print(f"Sampling WITH replacement enabled.")
 
-        # Select up to that index (+1 to be safe or inclusive)
-        corpus_train_dataset_subset = corpus_train_dataset_subset.select(
-            range(idx_to_keep + 1)
-        )
+            if unique_datapool_size is None:
+                raise ValueError(
+                    "unique_datapool_size must be specified when sample_with_replacement is True"
+                )
+
+            # Ensure we don't request more unique documents than available.
+            if unique_datapool_size > num_total_docs:
+                raise ValueError(
+                    f"unique_datapool_size ({unique_datapool_size:,}) exceeds available "
+                    f"documents ({num_total_docs:,})"
+                )
+
+            print(f"Creating pool of {unique_datapool_size:,} unique documents.")
+
+            # Step 1: Select the unique pool of documents and tokenize them.
+            pool_indices = active_indices[:unique_datapool_size]
+            unique_pool_dataset = corpus_train_dataset.select(pool_indices).map(
+                tokenize_truncate_and_count, num_proc=num_proc
+            )
+
+            # Get token lengths for the pool.
+            pool_token_lengths = np.array(unique_pool_dataset["token_length"])
+            avg_pool_tokens_per_doc = np.mean(pool_token_lengths)
+
+            print(
+                f"Unique pool: {unique_datapool_size:,} docs, "
+                f"avg {avg_pool_tokens_per_doc:.1f} tokens/doc"
+            )
+
+            # Step 2: Sample with replacement from the pool until we reach target tokens.
+            # Use vectorized numpy operations for efficiency.
+            sample_rng = np.random.default_rng(data_config["shuffle_seed"] + 1000)
+
+            # Estimate how many samples we need (with buffer).
+            estimated_samples = int(1.2 * num_training_tokens_per_epoch / avg_pool_tokens_per_doc)
+
+            # Generate all indices at once.
+            sampled_pool_indices = sample_rng.integers(
+                0, unique_datapool_size, size=estimated_samples, dtype=np.int64
+            )
+
+            # Vectorized lookup of token lengths and cumulative sum.
+            print('selecting tokens')
+            sampled_token_lengths = pool_token_lengths[sampled_pool_indices]
+            print('got tokens')
+            cumulative_tokens = np.cumsum(sampled_token_lengths)
+
+            # Find where we exceed target and trim.
+            idx_to_keep = np.searchsorted(cumulative_tokens, num_training_tokens_per_epoch)
+            sampled_pool_indices = sampled_pool_indices[: idx_to_keep + 1]
+            total_tokens = cumulative_tokens[idx_to_keep]
+
+            print(
+                f"Sampled {len(sampled_pool_indices):,} documents (with replacement) "
+                f"totaling {total_tokens:,} tokens."
+            )
+
+            # Step 3: Create the final dataset by selecting from the pool with duplicates.
+            # HuggingFace datasets .select() supports duplicate indices.
+            corpus_train_dataset_subset = unique_pool_dataset.select(sampled_pool_indices)
+
+        else:
+            # Original behavior: Sampling WITHOUT replacement.
+            corpus_train_dataset_subset = corpus_train_dataset.select(
+                active_indices[:estimated_docs_needed]
+            ).map(tokenize_truncate_and_count, num_proc=num_proc)
+
+            # Figure out how many documents to drop to meet our target number of tokens.
+            cumulative_lengths = np.cumsum(corpus_train_dataset_subset["token_length"])
+            # Find the index where we exceed the target.
+            # This finds the first index where the sum is >= target.
+            idx_to_keep = np.searchsorted(cumulative_lengths, num_training_tokens_per_epoch)
+
+            # Select up to that index (+1 to be safe or inclusive)
+            corpus_train_dataset_subset = corpus_train_dataset_subset.select(
+                range(idx_to_keep + 1)
+            )
 
         # Cut the Arrow buffers in half by casting dtypes before saving (no semantic change).
         # Remove unnecessary columns to reduce size, then save to disk.
