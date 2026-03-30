@@ -51,7 +51,6 @@ def create_dataset_for_pretraining(
     trainer_config: Dict[str, Any],
     tokenizer: PreTrainedTokenizer,
     cols_to_keep: Optional[Set[str]] = None,
-    shared_hf_cache: Optional[str] = None,
 ) -> Dict[str, Union[Dataset, List[Dataset]]]:
     print('starting to create pretraining dataset')
     if cols_to_keep is None:
@@ -78,7 +77,7 @@ def create_dataset_for_pretraining(
         return example
 
     # Specify where to cache rank-0 tokenized artifacts so other ranks can just load
-    hf_cache_root = os.getenv("HF_DATASETS_CACHE") or "/lfs/skampere1/0/shared_hf_cache"
+    hf_cache_root = os.getenv("HF_DATASETS_CACHE") or "/data/hf_cache"
     print('making directory to stash the data')
     os.makedirs(hf_cache_root, exist_ok=True)
     corpus_train_dataset_subset_cache_dir = os.path.join(
@@ -101,7 +100,7 @@ def create_dataset_for_pretraining(
                 "HuggingFaceTB/smollm-corpus",
                 "fineweb-edu-dedup",
                 split="train",  # This is the only split that exists.
-                cache_dir=shared_hf_cache,
+                cache_dir="/data/hf_home",
                 num_proc=num_proc,
             )
             print('got the dataset')
@@ -115,76 +114,28 @@ def create_dataset_for_pretraining(
             corpus_train_dataset = corpus_split_dataset["train"]
             corpus_eval_dataset = corpus_split_dataset["test"]
             avg_tokens_per_doc = 794
-        elif data_config["corpus"] == "sharded_100x_rewrites":
-            print('starting load of sharded_100x_rewrites')
-            corpus_train_dataset = load_dataset(
-                "jkazdan/sharded_100x_rewrites",
-                split="train",
-            )
-            print('got the rewrite dataset')
-            # Use fineweb-edu-dedup for eval to keep evaluation consistent
-            # across all experiments.
-            corpus_eval_hf = load_dataset(
-                "HuggingFaceTB/smollm-corpus",
-                "fineweb-edu-dedup",
-                split="train",
-                cache_dir=shared_hf_cache,
-            )
-            corpus_eval_split = corpus_eval_hf.train_test_split(
-                test_size=150e6 / 220e9,
-                seed=data_config.get("train_test_split_seed", 0),
-            )
-            corpus_eval_dataset = corpus_eval_split["test"]
-            # Measure actual avg token length from a sample so that
-            # estimated_docs_needed is accurate for this corpus.
-            sample_size = min(2000, len(corpus_train_dataset))
-            sample_dataset = corpus_train_dataset.select(range(sample_size)).map(
-                tokenize_truncate_and_count, num_proc=num_proc
-            )
-            avg_tokens_per_doc = float(np.mean(sample_dataset["token_length"]))
-            print(f"sharded_100x_rewrites: measured avg tokens/doc = {avg_tokens_per_doc:.1f} (from {sample_size} samples)")
         else:
-            raise ValueError(f"Unknown corpus: {data_config['corpus']}")
+            raise ValueError
 
         # Subsample the appropriate number of documents.
-        print("Subsampling and tokenizing the pretraining corpus.")
+        print("Shuffling, subsampling and tokenizing the pretraining corpus.")
         estimated_docs_needed = int(
             1.1 * num_training_tokens_per_epoch / avg_tokens_per_doc
         )
         num_total_docs = len(corpus_train_dataset)
         all_indices = np.arange(num_total_docs)
-
-        if data_config["corpus"] == "sharded_100x_rewrites":
-            # Randomly select rows (controlled by shuffle_seed), then sort the
-            # selected indices so that semantic duplicates (adjacent rewrites of
-            # the same document) remain adjacent during training.
-            rng = np.random.default_rng(data_config["shuffle_seed"])
-            rng.shuffle(all_indices)
-            n_select = min(estimated_docs_needed, num_total_docs)
-            active_indices = np.sort(all_indices[:n_select])
-            if data_config["direction"] == "bot":
-                # Traverse the sorted selection back-to-front.
-                active_indices = active_indices[::-1].copy()
-            elif data_config["direction"] != "top":
-                raise ValueError(
-                    f"Impermissible value of direction (must be 'top' or 'bot'): {data_config['direction']}"
-                )
-            # active_indices is already sized to estimated_docs_needed, so the
-            # downstream [:estimated_docs_needed] slice is a no-op.
-            estimated_docs_needed = n_select
+        rng = np.random.default_rng(data_config["shuffle_seed"])
+        rng.shuffle(all_indices)
+        if data_config["direction"] == "top":
+            # Work from the start of the shuffled list forwards
+            active_indices = all_indices
+        elif data_config["direction"] == "bot":
+            # Work from the end of the shuffled list backwards
+            active_indices = all_indices[::-1].copy()
         else:
-            rng = np.random.default_rng(data_config["shuffle_seed"])
-            rng.shuffle(all_indices)
-            if data_config["direction"] == "top":
-                # Work from the start of the shuffled list forwards
-                active_indices = all_indices
-            elif data_config["direction"] == "bot":
-                # Work from the end of the shuffled list backwards
-                active_indices = all_indices[::-1].copy()
-            else:
-                raise ValueError(
-                    f"Impermissible value of direction (must be 'top' or 'bot'): {data_config['direction']}"
-                )
+            raise ValueError(
+                f"Impermissible value of direction (must be 'top' or 'bot'): {data_config['direction']}"
+            )
 
         # Check if we should sample with replacement from a finite pool.
         sample_with_replacement = data_config.get("sample_with_replacement", False)
@@ -286,7 +237,7 @@ def create_dataset_for_pretraining(
                 {
                     k: v
                     for k, v in DEFAULT_COMPRESSION_TYPES.items()
-                    if k in cols_to_keep and k in corpus_train_dataset_subset.column_names
+                    if k in cols_to_keep
                 }
             ),
             num_proc=num_proc,
@@ -309,7 +260,7 @@ def create_dataset_for_pretraining(
                 {
                     k: v
                     for k, v in DEFAULT_COMPRESSION_TYPES.items()
-                    if k in cols_to_keep and k in corpus_eval_dataset.column_names
+                    if k in cols_to_keep
                 }
             ),
             num_proc=num_proc,

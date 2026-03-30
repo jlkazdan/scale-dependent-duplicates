@@ -6,24 +6,18 @@ command:
   - ${program}
   - ${args}
 program: scripts/pretrain_language_model.py
-entity: jkazdan
-project: duplicates_semantics
+entity: joshteam
+project: duplicates_semantics_rewrite_exp
 method: grid
 parameters:
   data_config:
     parameters:
       corpus:
-        values: [ "fineweb-edu-dedup" ]
+        values: [ "sharded_100x_rewrites" ]
       direction:
         values: [ "top", "bot" ]
       shuffle_seed:
         values: [ 0 ]
-      train_test_split_seed:
-        values: [ 0 ]
-      sample_with_replacement:
-        values: [ True ]
-      unique_datapool_size:
-        values: [ 300000, 600000 ]
   model_config:
     parameters:
       attn_implementation:
@@ -82,10 +76,10 @@ parameters:
         values: [ True ]
       report_to:
         values: ["wandb"]
-      save_strategy:
-        values: [ "steps" ]
       save_steps:
-        values: [ 550 ]
+        values: [ 500 ]
+      save_strategy:
+        values: [ "no" ]
       save_total_limit:
         values: [ 1 ]
       torch_compile:

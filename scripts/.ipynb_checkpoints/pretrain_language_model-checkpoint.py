@@ -94,15 +94,6 @@ def pretrain():
         f"CUDA_VISIBLE_DEVICES={os.environ.get('CUDA_VISIBLE_DEVICES','')}"
     )
 
-    # Capture the shared HF datasets cache BEFORE initialize_wandb overrides
-    # HF_DATASETS_CACHE to a run-specific path. Used for loading shared/pre-
-    # downloaded datasets like fineweb-edu-dedup.
-    shared_hf_cache = (
-        os.environ.get("HF_DATASETS_CACHE")
-        or os.environ.get("HF_HOME")
-        or "/lfs/skampere1/0/shared_hf_cache"
-    )
-
     run, run_id, wandb_config, pted_model_hf_name = initialize_wandb()
     pprint.pprint(wandb_config)
 
@@ -221,7 +212,6 @@ def pretrain():
         data_config=wandb_config["data_config"],
         trainer_config=wandb_config["trainer_config"],
         tokenizer=tokenizer,
-        shared_hf_cache=shared_hf_cache,
     )
     train_dataset = datasets_dict["train"]
     eval_dataset = datasets_dict["eval"]
@@ -379,39 +369,25 @@ def create_pretrained_model_huggingface_name(wandb_config: Dict[str, Any]) -> st
     num_train_epochs = wandb_config["trainer_config"]["num_train_epochs"]
     overtrain_multiplier = wandb_config["trainer_config"]["overtrain_multiplier"]
     seed = wandb_config["seed"]
-    corpus = wandb_config["data_config"]["corpus"]
+    direction = wandb_config["data_config"]["direction"]
+    shuffle_seed = wandb_config["data_config"]["shuffle_seed"]
+    train_test_split_seed = wandb_config["data_config"]["train_test_split_seed"]
 
-    if corpus == "sharded_100x_rewrites":
-        # train_test_split_seed is not applicable for this corpus.
-        # shuffle_seed controls which rows are randomly selected; direction
-        # controls front-to-back (top) vs back-to-front (bot) traversal.
-        shuffle_seed = wandb_config["data_config"]["shuffle_seed"]
-        direction = wandb_config["data_config"]["direction"]
-        pted_model_hf_name = (
-            f"scale_mem_{init_model_name}_epch_{num_train_epochs}"
-            f"_ot_{overtrain_multiplier}_s_{seed}_corpus_rw100x"
-            f"_dir_{direction}_shfs_{shuffle_seed}"
-        )
-    else:
-        direction = wandb_config["data_config"]["direction"]
-        shuffle_seed = wandb_config["data_config"]["shuffle_seed"]
-        train_test_split_seed = wandb_config["data_config"]["train_test_split_seed"]
+    # Build base name.
+    pted_model_hf_name = f"scale_mem_{init_model_name}_epch_{num_train_epochs}_ot_{overtrain_multiplier}_s_{seed}_dir_{direction}_shfs_{shuffle_seed}_ttss_{train_test_split_seed}"
 
-        # Build base name.
-        pted_model_hf_name = f"scale_mem_{init_model_name}_epch_{num_train_epochs}_ot_{overtrain_multiplier}_s_{seed}_dir_{direction}_shfs_{shuffle_seed}_ttss_{train_test_split_seed}"
-
-        # Add suffix for sampling with replacement experiments.
-        sample_with_replacement = wandb_config["data_config"].get("sample_with_replacement", False)
-        if sample_with_replacement:
-            unique_datapool_size = wandb_config["data_config"].get("unique_datapool_size")
-            # Format pool size in a compact way (e.g., 190M, 10M, 1M, 500K).
-            if unique_datapool_size >= 1e6:
-                pool_size_str = f"{unique_datapool_size / 1e6:.0f}M"
-            elif unique_datapool_size >= 1e3:
-                pool_size_str = f"{unique_datapool_size / 1e3:.0f}K"
-            else:
-                pool_size_str = str(unique_datapool_size)
-            pted_model_hf_name += f"_repl_pool_{pool_size_str}"
+    # Add suffix for sampling with replacement experiments.
+    sample_with_replacement = wandb_config["data_config"].get("sample_with_replacement", False)
+    if sample_with_replacement:
+        unique_datapool_size = wandb_config["data_config"].get("unique_datapool_size")
+        # Format pool size in a compact way (e.g., 190M, 10M, 1M, 500K).
+        if unique_datapool_size >= 1e6:
+            pool_size_str = f"{unique_datapool_size / 1e6:.0f}M"
+        elif unique_datapool_size >= 1e3:
+            pool_size_str = f"{unique_datapool_size / 1e3:.0f}K"
+        else:
+            pool_size_str = str(unique_datapool_size)
+        pted_model_hf_name += f"_repl_pool_{pool_size_str}"
 
     if len(pted_model_hf_name) > 94:
         raise ValueError(f"pted_model_hf_name is too long: {pted_model_hf_name}")
